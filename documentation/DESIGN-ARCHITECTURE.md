@@ -26,4 +26,66 @@ but the number of users will be very small.
 
 The audiobook and e-book binaries will be stored in S3.
 
-The metadata (title, author, etc.) will be stored in a Postgres relational database. 
+The metadata (title, author, etc.) will be stored in a Postgres relational database.
+
+## Data Model
+
+All tables should have a numeric PK (except perhaps for a table whose exclusive function is to join other tables). 
+
+The data model should support each book having an arbitrary number of authors.
+
+Authors should be able to have an indefinite number of pseudonyms.  I don't care to track which name the author used
+for a particular book.
+
+Books can be stand-alone or part of a series.  The books are associated with a series an a particular order, such as
+"book three of the Interstallar Ninja series".  A complicating factor is that some series have interstitial books, so
+the model should be able to support "book 3.5" of a series.  This is probably best handled by having a hidden numeric
+series number and an optional text-based display series number, for those cases when book 7 is really the 8th book in
+a series.
+
+Additional book metadata:
+ - title
+ - publication year
+ - publication date (optional)
+ - acquisition date
+ - isbn
+
+Books should be able to have an indefinite number of tags (a plain text string that marks a book as having a particular attribute).
+
+Books should be able to have an indefinite number of alternate titles.  Examples:
+ - "The Shape of Water" by Andrea Camilleri has an alternate title of "La Forma dell'acqua"
+ - "Winner Take All" by Barry Eisler has TWO alternate titles: "Rain Storm" and "Choke Point" 
+
+User metadata:
+ - email (unique, used for login)
+ - full name
+ - disabled flag
+
+Books should be able to have one review by each user.
+
+Review metadata:
+ - number of stars
+ - review text
+ - spoilers (review content that should only be read by people who have already read the book)
+ - private notes (only visible to the user that wrote the review)
+ - recommended flag
+ - create time
+ - modification time
+
+Books should be able to have one or more ebooks and/or audiobooks associated with them (represented by an
+S3 object id).
+
+Audiobooks should have a list of narrators associated with them.
+
+An amazon info table should associate additional optional metadata from amazon.  There will only be one
+amazon asin associated with each book (even if there's multiple assets). 
+ - asin
+ - sample time (when the data was pulled from amazon)
+ - rating
+ - num ratings
+ - publication date
+ - page count
+
+Narrator and author names should be normalized so that adjusting the spelling of one affects all the entries.
+
+Publisher information is not captured.  Genre information is captured using tags.
