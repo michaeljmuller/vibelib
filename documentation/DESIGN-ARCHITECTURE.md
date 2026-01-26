@@ -22,13 +22,13 @@ The new project should be able to handle 10x this size easily.
 There is only one primary user.  The system should be multi-user to support access by friends and family,
 but the number of users will be very small.
 
-## Storage
+## Storage Layer
 
 The audiobook and e-book binaries will be stored in S3.
 
 The metadata (title, author, etc.) will be stored in a Postgres relational database.
 
-## Data Model
+### Data Model
 
 All tables should have a numeric PK (except perhaps for a table whose exclusive function is to join other tables). 
 
@@ -89,3 +89,27 @@ amazon asin associated with each book (even if there's multiple assets).
 Narrator and author names should be normalized so that adjusting the spelling of one affects all the entries.
 
 Publisher information is not captured.  Genre information is captured using tags.
+
+## Service Layer
+
+The service layer will be implemented in python. 
+
+OAuth 2.0 with short-lived access tokens (often JWTs) and refresh tokens.
+
+## Web User Interface
+
+The web-based user interface will also be implemented in python.
+
+The UI will authenticate using OAuth.
+
+## Containers and Orchestration
+
+Containerization will be provided by Docker.  
+
+A docker compose file will orchestrate the following containers:
+ - web user interface
+ - service layer
+ - postgres
+
+The postgres service will have a bind volume mount so the metadata persists properly.
+

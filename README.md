@@ -1,2 +1,7 @@
-This project is a database of ebooks and audiobooks; it includes the persistent storage as well as an API to access the audiobooks over HTTPS.
+This project is a database of ebooks and audiobooks.
+
+The database provides: 
+ - persistent storage
+ - a service layer providing an API that handles ingestion and search
+ - a web-based user interface
 
