@@ -1,0 +1,38 @@
+services:
+  ui:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.ui
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVICE_URL=http://service:5000
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-change-in-prod}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+    depends_on:
+      - service
+
+  service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.service
+    ports:
+      - "5001:5000"
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_BUCKET=${S3_BUCKET}
+
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_USER=library
+      - POSTGRES_PASSWORD=library
+      - POSTGRES_DB=library
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data

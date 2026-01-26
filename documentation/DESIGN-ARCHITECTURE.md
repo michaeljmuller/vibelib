@@ -28,6 +28,20 @@ The audiobook and e-book binaries will be stored in S3.
 
 The metadata (title, author, etc.) will be stored in a Postgres relational database.
 
+### Object Store
+
+The binaries are actually stored in an S3-compatible object store hosted by Linode (now Akamai).
+
+Accordingly some additional configuration may be necessary beyond what's done for AWS.
+
+Authentication is through access/secret keys.
+
+Here is the endpoint info (although this should be configured). 
+
+object.store.bucket.name=michaeljmuller-media
+object.store.bucket.endpoint=us-east-1.linodeobjects.com
+object.store.bucket.region=us-east-1
+
 ### Data Model
 
 All tables should have a numeric PK (except perhaps for a table whose exclusive function is to join other tables). 
@@ -90,17 +104,26 @@ Narrator and author names should be normalized so that adjusting the spelling of
 
 Publisher information is not captured.  Genre information is captured using tags.
 
+## Authentication
+
+OAuth 2.0 is used for user authentication. Multiple providers are supported (Google, Apple, etc.)
+and users choose which to use at login.
+
+The web UI (and future iOS client) authenticates users via OAuth, obtaining a JWT access token.
+Clients pass the JWT to the service layer via Authorization header on each request.
+The service layer validates the JWT signature and claims, agnostic to which client or provider was used.
+
 ## Service Layer
 
-The service layer will be implemented in python. 
+The service layer will be implemented in python.
 
-OAuth 2.0 with short-lived access tokens (often JWTs) and refresh tokens.
+All endpoints (except health checks) require a valid JWT in the Authorization header.
 
 ## Web User Interface
 
 The web-based user interface will also be implemented in python.
 
-The UI will authenticate using OAuth.
+The UI implements the OAuth login flow, stores the JWT, and includes it in service layer requests.
 
 ## Containers and Orchestration
 
@@ -111,5 +134,5 @@ A docker compose file will orchestrate the following containers:
  - service layer
  - postgres
 
-The postgres service will have a bind volume mount so the metadata persists properly.
+The postgres service will have a bind mount so the metadata persists properly.
 

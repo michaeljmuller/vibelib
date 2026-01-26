@@ -1,0 +1,11 @@
+# Environment files with secrets
+.env
+docker/.env
+
+# Docker data
+docker/data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
