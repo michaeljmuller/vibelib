@@ -50,6 +50,13 @@
             border-radius: 4px;
             font-family: monospace;
         }
+        li a {
+            color: #1a73e8;
+            text-decoration: none;
+        }
+        li a:hover {
+            text-decoration: underline;
+        }
         .empty {
             color: #666;
             font-style: italic;
@@ -73,7 +80,13 @@
     {% if objects %}
     <ul>
         {% for obj in objects %}
-        <li>{{ obj }}</li>
+        <li>
+            {% if obj.lower().endswith('.epub') %}
+            <a href="/ebook/{{ obj }}">{{ obj }}</a>
+            {% else %}
+            {{ obj }}
+            {% endif %}
+        </li>
         {% endfor %}
     </ul>
     {% else %}

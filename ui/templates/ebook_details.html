@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ metadata.title if metadata else 'Ebook Details' }} - Library</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1 { color: #333; margin-bottom: 10px; }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-info img {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+        }
+        .back-link {
+            color: #4285f4;
+            text-decoration: none;
+        }
+        .back-link:hover { text-decoration: underline; }
+        .logout-link {
+            color: #666;
+            text-decoration: none;
+            margin-left: 15px;
+        }
+        .logout-link:hover { text-decoration: underline; }
+        .book-container {
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+        }
+        .cover-container {
+            flex-shrink: 0;
+        }
+        .cover-image {
+            max-width: 250px;
+            max-height: 400px;
+            width: auto;
+            height: auto;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .no-cover {
+            width: 200px;
+            height: 300px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-style: italic;
+        }
+        .metadata {
+            flex-grow: 1;
+        }
+        .metadata-item {
+            margin-bottom: 15px;
+        }
+        .metadata-label {
+            font-weight: 600;
+            color: #555;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 3px;
+        }
+        .metadata-value {
+            color: #333;
+        }
+        .authors {
+            font-size: 1.1em;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .description {
+            line-height: 1.6;
+            color: #444;
+        }
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .tag {
+            background: #e8f0fe;
+            color: #1a73e8;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+        }
+        .identifiers {
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        .s3-key {
+            font-family: monospace;
+            font-size: 0.85em;
+            color: #666;
+            background: #f5f5f5;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-top: 20px;
+            word-break: break-all;
+        }
+        .error {
+            color: #d32f2f;
+            background: #ffebee;
+            padding: 15px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/objects" class="back-link">&larr; Back to Objects</a>
+        {% if user %}
+        <div class="user-info">
+            {% if user.avatar %}
+            <img src="{{ user.avatar }}" alt="Avatar">
+            {% endif %}
+            <span>{{ user.name }}</span>
+            <a href="/logout" class="logout-link">Log out</a>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% elif metadata %}
+    <h1>{{ metadata.title or 'Untitled' }}</h1>
+
+    {% if metadata.authors %}
+    <div class="authors">by {{ metadata.authors | join(', ') }}</div>
+    {% endif %}
+
+    <div class="book-container">
+        <div class="cover-container">
+            <img src="/ebook/{{ s3_key }}/cover"
+                 alt="Cover"
+                 class="cover-image"
+                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <div class="no-cover" style="display: none;">No cover available</div>
+        </div>
+
+        <div class="metadata">
+            {% if metadata.description %}
+            <div class="metadata-item">
+                <div class="metadata-label">Description</div>
+                <div class="metadata-value description">{{ metadata.description }}</div>
+            </div>
+            {% endif %}
+
+            {% if metadata.publisher %}
+            <div class="metadata-item">
+                <div class="metadata-label">Publisher</div>
+                <div class="metadata-value">{{ metadata.publisher }}</div>
+            </div>
+            {% endif %}
+
+            {% if metadata.date %}
+            <div class="metadata-item">
+                <div class="metadata-label">Publication Date</div>
+                <div class="metadata-value">{{ metadata.date }}</div>
+            </div>
+            {% endif %}
+
+            {% if metadata.language %}
+            <div class="metadata-item">
+                <div class="metadata-label">Language</div>
+                <div class="metadata-value">{{ metadata.language }}</div>
+            </div>
+            {% endif %}
+
+            {% if metadata.subjects %}
+            <div class="metadata-item">
+                <div class="metadata-label">Subjects</div>
+                <div class="tags">
+                    {% for subject in metadata.subjects %}
+                    <span class="tag">{{ subject }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if metadata.identifiers %}
+            <div class="metadata-item">
+                <div class="metadata-label">Identifiers</div>
+                <div class="metadata-value identifiers">
+                    {% for scheme, value in metadata.identifiers.items() %}
+                    <div>{{ scheme | upper }}: {{ value }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if metadata.rights %}
+            <div class="metadata-item">
+                <div class="metadata-label">Rights</div>
+                <div class="metadata-value">{{ metadata.rights }}</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="s3-key">S3 Key: {{ s3_key }}</div>
+    {% endif %}
+</body>
+</html>
