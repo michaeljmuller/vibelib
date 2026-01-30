@@ -1,5 +1,6 @@
 import hashlib
 import os
+import re
 import time
 from functools import wraps
 from pathlib import Path
@@ -127,6 +128,87 @@ def get_cached_epub(s3_key):
     return epub_file, True
 
 
+def extract_isbn_from_content(book):
+    """
+    Extract ISBN from copyright page content.
+    Returns a single ISBN string, preferring ebook ISBN if multiple found.
+    """
+    # ISBN-13: starts with 978 or 979, 13 digits total (with optional hyphens/spaces)
+    # ISBN-10: 10 digits (last can be X), with optional hyphens/spaces
+    isbn_pattern = re.compile(
+        r'(?:ISBN[-:\s]*)?'
+        r'(97[89](?:[-\s]?\d){10}|'  # ISBN-13: 978/979 + 10 more digits
+        r'(?:\d[-\s]?){9}[\dXx])',  # ISBN-10: 9 digits + check digit
+        re.IGNORECASE
+    )
+
+    # Keywords indicating copyright/legal pages
+    copyright_keywords = ['copyright', 'colophon', 'imprint', 'legal', 'rights']
+    # Keywords indicating ebook format (check text after ISBN)
+    ebook_keywords = ['ebook', 'e-book', 'epub', 'digital', 'electronic']
+
+    found_isbns = []  # List of (isbn, is_ebook)
+
+    for item in book.get_items():
+        if item.media_type not in ['application/xhtml+xml', 'text/html']:
+            continue
+
+        item_name = (item.get_name() or '').lower()
+        item_id = (item.get_id() or '').lower()
+
+        # Check if this looks like a copyright page
+        is_copyright_page = any(
+            kw in item_name or kw in item_id
+            for kw in copyright_keywords
+        )
+
+        try:
+            content = item.get_content().decode('utf-8', errors='ignore')
+        except Exception:
+            continue
+
+        # Also check content for copyright indicators
+        content_lower = content.lower()
+        if not is_copyright_page:
+            is_copyright_page = 'copyright' in content_lower or '©' in content
+
+        if not is_copyright_page:
+            continue
+
+        # Find all ISBNs and check text immediately following for format indicator
+        for match in isbn_pattern.finditer(content):
+            isbn_raw = match.group(1)
+            # Normalize: remove hyphens and spaces
+            isbn = re.sub(r'[-\s]', '', isbn_raw)
+
+            # Look at text after ISBN until end of line or closing tag
+            after_pos = match.end()
+            end_pos = after_pos + 50
+            # Find first newline or < (tag start) to limit context to same line
+            after_text = content[after_pos:end_pos]
+            for delim in ['\n', '<', '\r']:
+                delim_pos = after_text.find(delim)
+                if delim_pos != -1:
+                    after_text = after_text[:delim_pos]
+            after_isbn = after_text.lower()
+
+            # Check if this ISBN is marked as ebook
+            is_ebook = any(kw in after_isbn for kw in ebook_keywords)
+
+            found_isbns.append((isbn, is_ebook))
+
+    if not found_isbns:
+        return None
+
+    # Prefer ebook ISBN
+    ebook_isbns = [isbn for isbn, is_ebook in found_isbns if is_ebook]
+    if ebook_isbns:
+        return ebook_isbns[0]
+
+    # Otherwise return first ISBN found
+    return found_isbns[0][0]
+
+
 def extract_epub_metadata(epub_path):
     """Extract metadata from an EPUB file."""
     book = epub.read_epub(str(epub_path))
@@ -173,12 +255,22 @@ def extract_epub_metadata(epub_path):
     if dates:
         metadata["date"] = dates[0][0]
 
-    # Identifiers (ISBN, etc.)
+    # Identifiers (ISBN, ASIN, etc.)
     identifiers = book.get_metadata("DC", "identifier")
     for identifier in identifiers:
         value = identifier[0]
         attrs = identifier[1] if len(identifier) > 1 else {}
-        scheme = attrs.get("scheme", attrs.get("{http://www.idpf.org/2007/opf}scheme", "unknown"))
+        scheme = attrs.get("scheme", attrs.get("{http://www.idpf.org/2007/opf}scheme"))
+
+        # Try to extract scheme from URN prefix if not in attributes
+        if not scheme and value:
+            if value.startswith("urn:"):
+                # Parse urn:scheme:value format
+                parts = value.split(":", 2)
+                if len(parts) >= 3:
+                    scheme = parts[1]
+                    value = parts[2]
+
         if scheme:
             metadata["identifiers"][scheme.lower()] = value
         else:
@@ -194,7 +286,31 @@ def extract_epub_metadata(epub_path):
     if rights:
         metadata["rights"] = rights[0][0]
 
+    # Try to extract ISBN from copyright page content
+    content_isbn = extract_isbn_from_content(book)
+    if content_isbn:
+        metadata["isbn"] = format_isbn(content_isbn)
+    elif "isbn" in metadata["identifiers"]:
+        # Fall back to ISBN from DC metadata
+        metadata["isbn"] = format_isbn(metadata["identifiers"]["isbn"])
+
     return metadata
+
+
+def format_isbn(isbn):
+    """Format ISBN for display (3-1-4-4-1 for ISBN-13, 1-4-4-1 for ISBN-10)."""
+    # Remove any existing hyphens/spaces
+    isbn = re.sub(r'[-\s]', '', isbn)
+
+    if len(isbn) == 13:
+        # ISBN-13: 978-X-XXXX-XXXX-X
+        return f"{isbn[:3]}-{isbn[3]}-{isbn[4:8]}-{isbn[8:12]}-{isbn[12]}"
+    elif len(isbn) == 10:
+        # ISBN-10: X-XXXX-XXXX-X
+        return f"{isbn[0]}-{isbn[1:5]}-{isbn[5:9]}-{isbn[9]}"
+    else:
+        # Return as-is if unexpected length
+        return isbn
 
 
 def extract_epub_cover(epub_path):
@@ -204,18 +320,25 @@ def extract_epub_cover(epub_path):
     # Try to find cover image via metadata
     cover_id = None
 
-    # Check for cover in metadata
+    # Check for cover in metadata - handles two formats:
+    # Format 1: [('cover-image-id', {})]
+    # Format 2: [(None, {'name': 'cover', 'content': 'image.jpg'})]
     meta_covers = book.get_metadata("OPF", "cover")
     if meta_covers:
-        cover_id = meta_covers[0][0]
+        if meta_covers[0][0]:
+            cover_id = meta_covers[0][0]
+        elif isinstance(meta_covers[0][1], dict):
+            cover_id = meta_covers[0][1].get('content')
 
-    # Look for cover item
+    # Look for cover item by ID or name matching cover_id
+    if cover_id:
+        for item in book.get_items():
+            if item.get_id() == cover_id or item.get_name() == cover_id:
+                if item.media_type and item.media_type.startswith("image/"):
+                    return item.get_content(), item.media_type
+
+    # Check by common cover item IDs/names
     for item in book.get_items():
-        # Check if this item is the cover by ID
-        if cover_id and item.get_id() == cover_id:
-            return item.get_content(), item.media_type
-
-        # Check by common cover item IDs/names
         item_id = item.get_id().lower() if item.get_id() else ""
         item_name = item.get_name().lower() if item.get_name() else ""
 

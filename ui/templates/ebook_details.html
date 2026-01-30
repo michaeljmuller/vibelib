@@ -87,6 +87,12 @@
         .authors {
             font-size: 1.1em;
             color: #666;
+            margin-bottom: 10px;
+        }
+        .isbn {
+            font-family: monospace;
+            font-size: 0.95em;
+            color: #555;
             margin-bottom: 20px;
         }
         .description {
@@ -148,6 +154,10 @@
 
     {% if metadata.authors %}
     <div class="authors">by {{ metadata.authors | join(', ') }}</div>
+    {% endif %}
+
+    {% if metadata.isbn %}
+    <div class="isbn">ISBN: {{ metadata.isbn }}</div>
     {% endif %}
 
     <div class="book-container">
