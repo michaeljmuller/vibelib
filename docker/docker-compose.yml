@@ -6,7 +6,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - SERVICE_URL=http://service:5000
+      - SERVICE_URL=http://gluetun:5000
       - SECRET_KEY=${SECRET_KEY:-dev-secret-change-in-prod}
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
@@ -17,14 +17,33 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.service
-    ports:
-      - "5001:5000"
+    network_mode: "service:gluetun"
     environment:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - S3_REGION=${S3_REGION:-us-east-1}
       - S3_ENDPOINT=${S3_ENDPOINT}
       - S3_BUCKET=${S3_BUCKET}
+    depends_on:
+      - gluetun
+      - postgres
+
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    ports:
+      - "5001:5000"
+    environment:
+      - VPN_SERVICE_PROVIDER=${VPN_PROVIDER}
+      - VPN_TYPE=${VPN_TYPE}
+      - WIREGUARD_PRIVATE_KEY=${VPN_WIREGUARD_PRIVATE_KEY}
+      - WIREGUARD_ADDRESSES=${VPN_WIREGUARD_ADDRESS}/32
+      - SERVER_COUNTRIES=${VPN_SERVER_COUNTRY}
 
   postgres:
     image: postgres:16

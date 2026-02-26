@@ -104,6 +104,118 @@ Narrator and author names should be normalized so that adjusting the spelling of
 
 Publisher information is not captured.  Genre information is captured using tags.
 
+### Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    users {
+        bigint user_id PK
+        varchar email UK
+        varchar full_name
+        boolean disabled
+    }
+    authors {
+        bigint author_id PK
+        varchar primary_name
+        bigint pseudonym_for FK
+        tsvector search_vector
+    }
+    narrators {
+        bigint narrator_id PK
+        varchar name UK
+    }
+    series {
+        bigint series_id PK
+        varchar name
+        text description
+    }
+    books {
+        bigint book_id PK
+        varchar title
+        varchar language_code
+        varchar isbn
+        integer publication_year
+        date publication_date
+        date acquisition_date
+        timestamptz created_at
+        timestamptz updated_at
+        tsvector search_vector
+    }
+    book_series {
+        bigint book_id FK
+        bigint series_id FK
+        numeric sort_order
+        varchar display_number
+    }
+    book_authors {
+        bigint book_id FK
+        bigint author_id FK
+        smallint author_order
+    }
+    book_alternate_titles {
+        bigint alternate_title_id PK
+        bigint book_id FK
+        varchar title
+    }
+    book_tags {
+        bigint book_id FK
+        varchar tag
+    }
+    ebook_files {
+        bigint ebook_file_id PK
+        bigint book_id FK
+        varchar s3_object_key UK
+        varchar file_format
+        bigint file_size_bytes
+    }
+    audiobook_files {
+        bigint audiobook_file_id PK
+        bigint book_id FK
+        varchar s3_object_key UK
+        varchar file_format
+        integer duration_seconds
+        bigint file_size_bytes
+    }
+    audiobook_narrators {
+        bigint audiobook_file_id FK
+        bigint narrator_id FK
+        smallint narrator_order
+    }
+    reviews {
+        bigint review_id PK
+        bigint book_id FK
+        bigint user_id FK
+        smallint num_stars
+        text review_text
+        text spoilers
+        text private_notes
+        boolean recommended
+    }
+    amazon_metadata {
+        bigint book_id PK
+        varchar asin UK
+        timestamptz sample_time
+        numeric rating
+        integer num_ratings
+        date publication_date
+        integer page_count
+    }
+
+    books ||--o{ book_series : "belongs to"
+    series ||--o{ book_series : "contains"
+    books ||--o{ book_authors : "written by"
+    authors ||--o{ book_authors : "writes"
+    books ||--o{ book_alternate_titles : "also known as"
+    books ||--o{ book_tags : "tagged with"
+    books ||--o{ ebook_files : "has"
+    books ||--o{ audiobook_files : "has"
+    audiobook_files ||--o{ audiobook_narrators : "narrated by"
+    narrators ||--o{ audiobook_narrators : "narrates"
+    books ||--o{ reviews : "reviewed in"
+    users ||--o{ reviews : "writes"
+    books ||--o| amazon_metadata : "has"
+```
+
 ## Authentication
 
 OAuth 2.0 is used for user authentication. Multiple providers are supported (Google, Apple, etc.)
