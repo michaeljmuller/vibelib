@@ -131,6 +131,32 @@
             padding: 15px;
             border-radius: 4px;
         }
+        .amazon-section {
+            margin-top: 30px;
+            border-top: 1px solid #e0e0e0;
+            padding-top: 20px;
+        }
+        .amazon-section h2 {
+            font-size: 1em;
+            font-weight: 600;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0 0 15px 0;
+        }
+        .amazon-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .amazon-stat {
+            min-width: 120px;
+        }
+        .amazon-stat .metadata-label { margin-bottom: 3px; }
+        .stars {
+            color: #e47911;
+            font-size: 1.1em;
+        }
     </style>
 </head>
 <body>
@@ -228,6 +254,49 @@
             {% endif %}
         </div>
     </div>
+
+    {% if metadata.amazon %}
+    <div class="amazon-section">
+        <h2>From Amazon</h2>
+        <div class="amazon-grid">
+            {% if metadata.amazon.rating is not none %}
+            <div class="amazon-stat">
+                <div class="metadata-label">Rating</div>
+                <div class="metadata-value">
+                    <span class="stars">&#9733;</span> {{ metadata.amazon.rating }} / 5
+                </div>
+            </div>
+            {% endif %}
+            {% if metadata.amazon.num_ratings is not none %}
+            <div class="amazon-stat">
+                <div class="metadata-label">Ratings</div>
+                <div class="metadata-value">{{ "{:,}".format(metadata.amazon.num_ratings) }}</div>
+            </div>
+            {% endif %}
+            {% if metadata.amazon.pages is not none %}
+            <div class="amazon-stat">
+                <div class="metadata-label">Pages</div>
+                <div class="metadata-value">{{ metadata.amazon.pages }}</div>
+            </div>
+            {% endif %}
+            {% if metadata.amazon.publication_date %}
+            <div class="amazon-stat">
+                <div class="metadata-label">Published</div>
+                <div class="metadata-value">{{ metadata.amazon.publication_date }}</div>
+            </div>
+            {% endif %}
+            {% if metadata.amazon.series %}
+            <div class="amazon-stat">
+                <div class="metadata-label">Series</div>
+                <div class="metadata-value">{{ metadata.amazon.series }}</div>
+            </div>
+            {% endif %}
+        </div>
+        <div style="margin-top:10px; font-size:0.8em; color:#999;">
+            <a href="{{ metadata.amazon.url }}" target="_blank" rel="noopener">View on Amazon</a>
+        </div>
+    </div>
+    {% endif %}
 
     <div class="s3-key">S3 Key: {{ s3_key }}</div>
     {% endif %}

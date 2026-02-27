@@ -1,11 +1,11 @@
 ---
 id: TASK-12
 title: add a gluetun container to the back end
-status: Testing
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-02-26 23:32'
-updated_date: '2026-02-26 23:48'
+updated_date: '2026-02-26 23:49'
 labels: []
 dependencies: []
 ordinal: 1000

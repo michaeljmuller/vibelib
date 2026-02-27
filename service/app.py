@@ -10,6 +10,7 @@ import requests
 from botocore.exceptions import ClientError
 from ebooklib import epub
 from flask import Flask, Response, g, jsonify, request
+from playwright.sync_api import sync_playwright
 
 app = Flask(__name__)
 
@@ -357,6 +358,126 @@ def extract_epub_cover(epub_path):
     return None, None
 
 
+# Amazon metadata cache: {asin: (data, expiry_time)}
+AMAZON_CACHE = {}
+AMAZON_CACHE_TTL = 3600  # 1 hour
+
+
+def scrape_amazon_metadata(asin):
+    """
+    Scrape Kindle metadata from Amazon for a given ASIN using Playwright.
+    Returns a dict with rating, num_ratings, pages, publication_date, series,
+    or raises an exception if scraping fails.
+    Results are cached in memory for AMAZON_CACHE_TTL seconds.
+    """
+    now = time.time()
+    if asin in AMAZON_CACHE:
+        data, expiry = AMAZON_CACHE[asin]
+        if now < expiry:
+            return data
+
+    url = f"https://www.amazon.com/dp/{asin}"
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1280, "height": 800},
+            locale="en-US",
+        )
+        page = context.new_page()
+
+        try:
+            page.goto(url, wait_until="networkidle", timeout=30000)
+
+            # Detect CAPTCHA / robot-check page
+            if "robot" in page.url or "captcha" in page.url.lower():
+                raise RuntimeError(f"Amazon returned CAPTCHA for ASIN {asin}")
+            if page.query_selector("form[action='/errors/validateCaptcha']"):
+                raise RuntimeError(f"Amazon returned CAPTCHA for ASIN {asin}")
+
+            result = {
+                "asin": asin,
+                "url": url,
+                "rating": None,
+                "num_ratings": None,
+                "pages": None,
+                "publication_date": None,
+                "series": None,
+            }
+
+            # Average rating
+            rating_el = page.query_selector("span[data-hook='rating-out-of-text']")
+            if not rating_el:
+                rating_el = page.query_selector("#acrPopover")
+            if rating_el:
+                rating_text = rating_el.get_attribute("title") or rating_el.inner_text()
+                m = re.search(r"([\d.]+)\s*out of", rating_text)
+                if m:
+                    result["rating"] = float(m.group(1))
+
+            # Number of ratings
+            review_el = page.query_selector("span[data-hook='total-review-count']")
+            if not review_el:
+                review_el = page.query_selector("#acrCustomerReviewText")
+            if review_el:
+                review_text = review_el.inner_text()
+                m = re.search(r"([\d,]+)", review_text)
+                if m:
+                    result["num_ratings"] = int(m.group(1).replace(",", ""))
+
+            # Series
+            series_el = page.query_selector("#seriesBulletWidget_feature_div a")
+            if series_el:
+                result["series"] = series_el.inner_text().strip()
+
+            # Pages and publication date from detail bullets
+            bullets = page.query_selector_all(
+                "#detailBullets_feature_div li .a-list-item"
+            )
+            for bullet in bullets:
+                text = bullet.inner_text()
+                if "Print length" in text or "File size" in text:
+                    # Kindle editions show "File size"; print length is the page count
+                    m = re.search(r"([\d,]+)\s*pages", text, re.IGNORECASE)
+                    if m and not result["pages"]:
+                        result["pages"] = int(m.group(1).replace(",", ""))
+                elif "Publication date" in text:
+                    parts = text.split(":")
+                    if len(parts) > 1:
+                        result["publication_date"] = parts[-1].strip()
+
+            # Fall back to product details table if bullets didn't have everything
+            if not result["pages"] or not result["publication_date"]:
+                rows = page.query_selector_all(
+                    "#productDetails_detailBullets_sections1 tr, "
+                    "#productDetails_techSpecs_section_1 tr"
+                )
+                for row in rows:
+                    th = row.query_selector("th")
+                    td = row.query_selector("td")
+                    if not th or not td:
+                        continue
+                    label = th.inner_text().strip()
+                    value = td.inner_text().strip()
+                    if "Print length" in label and not result["pages"]:
+                        m = re.search(r"([\d,]+)", value)
+                        if m:
+                            result["pages"] = int(m.group(1).replace(",", ""))
+                    elif "Publication date" in label and not result["publication_date"]:
+                        result["publication_date"] = value
+
+        finally:
+            browser.close()
+
+    AMAZON_CACHE[asin] = (result, now + AMAZON_CACHE_TTL)
+    return result
+
+
 @app.route("/api/objects", methods=["GET"])
 @auth_required
 def list_objects():
@@ -388,12 +509,25 @@ def get_ebook_metadata(s3_key):
         epub_path, _ = get_cached_epub(s3_key)
         metadata = extract_epub_metadata(epub_path)
         metadata["s3_key"] = s3_key
-        return jsonify(metadata)
     except FileNotFoundError as e:
         return jsonify({"error": str(e)}), 404
     except Exception as e:
         app.logger.error(f"Error extracting metadata from {s3_key}: {e}")
         return jsonify({"error": "Failed to extract metadata"}), 500
+
+    identifiers = metadata.get("identifiers", {})
+    asin = identifiers.get("asin") or identifiers.get("mobi-asin")
+    # Validate: real ASINs are 10 alphanumeric chars starting with B
+    if asin and not re.match(r'^B[A-Z0-9]{9}$', asin, re.IGNORECASE):
+        asin = None
+    if asin:
+        try:
+            metadata["amazon"] = scrape_amazon_metadata(asin)
+        except Exception as e:
+            app.logger.error(f"Amazon scrape failed for ASIN {asin}: {e}")
+            metadata["amazon"] = None
+
+    return jsonify(metadata)
 
 
 @app.route("/api/ebooks/<path:s3_key>/cover", methods=["GET"])
