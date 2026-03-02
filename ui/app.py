@@ -3,7 +3,7 @@ from functools import wraps
 
 import requests
 from authlib.integrations.flask_client import OAuth
-from flask import Flask, Response, redirect, render_template, session, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, session, url_for
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-in-prod")
@@ -152,6 +152,30 @@ def ebook_cover_proxy(s3_key):
             return "", 404
     except requests.RequestException:
         return "", 500
+
+
+@app.route("/ebook/<path:s3_key>/amazon")
+@login_required
+def ebook_amazon_proxy(s3_key):
+    """Proxy Amazon metadata from the service."""
+    headers = {}
+    if "token" in session:
+        headers["Authorization"] = f"Bearer {session['token']}"
+
+    try:
+        response = requests.get(
+            f"{SERVICE_URL}/api/ebooks/{s3_key}/amazon",
+            headers=headers,
+            timeout=60,
+        )
+        return Response(
+            response.content,
+            status=response.status_code,
+            mimetype="application/json",
+        )
+    except requests.RequestException as e:
+        app.logger.error(f"Failed to fetch Amazon metadata: {e}")
+        return jsonify({"error": "Service unavailable"}), 503
 
 
 @app.route("/health")

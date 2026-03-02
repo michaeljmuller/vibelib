@@ -157,6 +157,15 @@
             color: #e47911;
             font-size: 1.1em;
         }
+        .amazon-loading {
+            color: #999;
+            font-style: italic;
+            font-size: 0.9em;
+        }
+        .amazon-error {
+            color: #999;
+            font-size: 0.85em;
+        }
     </style>
 </head>
 <body>
@@ -255,50 +264,46 @@
         </div>
     </div>
 
-    {% if metadata.amazon %}
-    <div class="amazon-section">
+    <div class="amazon-section" id="amazon-section">
         <h2>From Amazon</h2>
-        <div class="amazon-grid">
-            {% if metadata.amazon.rating is not none %}
-            <div class="amazon-stat">
-                <div class="metadata-label">Rating</div>
-                <div class="metadata-value">
-                    <span class="stars">&#9733;</span> {{ metadata.amazon.rating }} / 5
-                </div>
-            </div>
-            {% endif %}
-            {% if metadata.amazon.num_ratings is not none %}
-            <div class="amazon-stat">
-                <div class="metadata-label">Ratings</div>
-                <div class="metadata-value">{{ "{:,}".format(metadata.amazon.num_ratings) }}</div>
-            </div>
-            {% endif %}
-            {% if metadata.amazon.pages is not none %}
-            <div class="amazon-stat">
-                <div class="metadata-label">Pages</div>
-                <div class="metadata-value">{{ metadata.amazon.pages }}</div>
-            </div>
-            {% endif %}
-            {% if metadata.amazon.publication_date %}
-            <div class="amazon-stat">
-                <div class="metadata-label">Published</div>
-                <div class="metadata-value">{{ metadata.amazon.publication_date }}</div>
-            </div>
-            {% endif %}
-            {% if metadata.amazon.series %}
-            <div class="amazon-stat">
-                <div class="metadata-label">Series</div>
-                <div class="metadata-value">{{ metadata.amazon.series }}</div>
-            </div>
-            {% endif %}
-        </div>
-        <div style="margin-top:10px; font-size:0.8em; color:#999;">
-            <a href="{{ metadata.amazon.url }}" target="_blank" rel="noopener">View on Amazon</a>
-        </div>
+        <div id="amazon-content" class="amazon-loading">Loading&hellip;</div>
     </div>
-    {% endif %}
 
     <div class="s3-key">S3 Key: {{ s3_key }}</div>
+
+    <script>
+        fetch('/ebook/{{ s3_key }}/amazon')
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('amazon-section').style.display = 'none';
+                    return;
+                }
+                const stats = [];
+                if (data.rating != null)
+                    stats.push(`<div class="amazon-stat"><div class="metadata-label">Rating</div><div class="metadata-value"><span class="stars">&#9733;</span> ${data.rating} / 5</div></div>`);
+                if (data.num_ratings != null)
+                    stats.push(`<div class="amazon-stat"><div class="metadata-label">Ratings</div><div class="metadata-value">${data.num_ratings.toLocaleString()}</div></div>`);
+                if (data.pages != null)
+                    stats.push(`<div class="amazon-stat"><div class="metadata-label">Pages</div><div class="metadata-value">${data.pages}</div></div>`);
+                if (data.publication_date)
+                    stats.push(`<div class="amazon-stat"><div class="metadata-label">Published</div><div class="metadata-value">${data.publication_date}</div></div>`);
+                if (data.series)
+                    stats.push(`<div class="amazon-stat"><div class="metadata-label">Series</div><div class="metadata-value">${data.series}</div></div>`);
+
+                if (stats.length === 0) {
+                    document.getElementById('amazon-section').style.display = 'none';
+                    return;
+                }
+
+                const link = data.url ? `<div style="margin-top:10px; font-size:0.8em; color:#999;"><a href="${data.url}" target="_blank" rel="noopener">View on Amazon</a></div>` : '';
+                document.getElementById('amazon-content').className = 'amazon-grid';
+                document.getElementById('amazon-content').innerHTML = stats.join('') + link;
+            })
+            .catch(() => {
+                document.getElementById('amazon-section').style.display = 'none';
+            });
+    </script>
     {% endif %}
 </body>
 </html>

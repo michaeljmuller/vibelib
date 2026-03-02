@@ -23,6 +23,12 @@ You should move tasks to "Testing" when you're done working them.
 
 You should NOT mark tasks "Done" or archive them.
 
+## Commits
+
+Do not add "Co-Authored-By" signatures to commits.
+
 ## Implementation
 
-Always indent with spaces.  Agents caught using tabs will be taken out back and reformatted.  
+Always indent with spaces.  Agents caught using tabs will be taken out back and reformatted.
+
+When reading EPUB files with `ebooklib`, always pass `options={"ignore_ncx": True}` to `epub.read_epub()`.  NCX is a deprecated EPUB 2 navigation format; ebooklib will default to ignoring it in a future version.

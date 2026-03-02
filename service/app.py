@@ -1,7 +1,9 @@
 import hashlib
+import logging
 import os
 import re
 import time
+import warnings
 from functools import wraps
 from pathlib import Path
 
@@ -10,9 +12,15 @@ import requests
 from botocore.exceptions import ClientError
 from ebooklib import epub
 from flask import Flask, Response, g, jsonify, request
+
+# ebooklib emits a FutureWarning about an internal XPath bug that we can't fix
+warnings.filterwarnings("ignore", category=FutureWarning, module="ebooklib")
 from playwright.sync_api import sync_playwright
 
+logging.basicConfig(level=logging.INFO)
+
 app = Flask(__name__)
+logger = logging.getLogger(__name__)
 
 S3_BUCKET = os.environ.get("S3_BUCKET")
 DEFAULT_LIMIT = 100
@@ -212,7 +220,7 @@ def extract_isbn_from_content(book):
 
 def extract_epub_metadata(epub_path):
     """Extract metadata from an EPUB file."""
-    book = epub.read_epub(str(epub_path))
+    book = epub.read_epub(str(epub_path), options={"ignore_ncx": True})
 
     metadata = {
         "title": None,
@@ -295,7 +303,36 @@ def extract_epub_metadata(epub_path):
         # Fall back to ISBN from DC metadata
         metadata["isbn"] = format_isbn(metadata["identifiers"]["isbn"])
 
+    logger.info(
+        "EPUB metadata extracted: title=%r, authors=%s, publisher=%r, "
+        "date=%r, isbn=%r, language=%r, subjects=%d",
+        metadata["title"],
+        metadata["authors"],
+        metadata["publisher"],
+        metadata["date"],
+        metadata.get("isbn"),
+        metadata["language"],
+        len(metadata["subjects"]),
+    )
+
     return metadata
+
+
+def get_epub_asin(epub_path):
+    """Extract ASIN from an EPUB file without full metadata extraction."""
+    book = epub.read_epub(str(epub_path), options={"ignore_ncx": True})
+    for identifier in book.get_metadata("DC", "identifier"):
+        value = identifier[0]
+        attrs = identifier[1] if len(identifier) > 1 else {}
+        scheme = attrs.get("scheme", attrs.get("{http://www.idpf.org/2007/opf}scheme"))
+        if not scheme and value and value.startswith("urn:"):
+            parts = value.split(":", 2)
+            if len(parts) >= 3:
+                scheme, value = parts[1], parts[2]
+        if scheme and scheme.lower() in ("asin", "mobi-asin"):
+            if re.match(r'^B[A-Z0-9]{9}$', value, re.IGNORECASE):
+                return value
+    return None
 
 
 def format_isbn(isbn):
@@ -316,7 +353,7 @@ def format_isbn(isbn):
 
 def extract_epub_cover(epub_path):
     """Extract cover image from an EPUB file. Returns (image_data, content_type) or (None, None)."""
-    book = epub.read_epub(str(epub_path))
+    book = epub.read_epub(str(epub_path), options={"ignore_ncx": True})
 
     # Try to find cover image via metadata
     cover_id = None
@@ -374,6 +411,7 @@ def scrape_amazon_metadata(asin):
     if asin in AMAZON_CACHE:
         data, expiry = AMAZON_CACHE[asin]
         if now < expiry:
+            logger.info("Amazon cache hit for ASIN %s", asin)
             return data
 
     url = f"https://www.amazon.com/dp/{asin}"
@@ -474,6 +512,17 @@ def scrape_amazon_metadata(asin):
         finally:
             browser.close()
 
+    logger.info(
+        "Amazon metadata scraped for ASIN %s: rating=%s, num_ratings=%s, "
+        "pages=%s, publication_date=%r, series=%r",
+        asin,
+        result["rating"],
+        result["num_ratings"],
+        result["pages"],
+        result["publication_date"],
+        result["series"],
+    )
+
     AMAZON_CACHE[asin] = (result, now + AMAZON_CACHE_TTL)
     return result
 
@@ -515,19 +564,35 @@ def get_ebook_metadata(s3_key):
         app.logger.error(f"Error extracting metadata from {s3_key}: {e}")
         return jsonify({"error": "Failed to extract metadata"}), 500
 
-    identifiers = metadata.get("identifiers", {})
-    asin = identifiers.get("asin") or identifiers.get("mobi-asin")
-    # Validate: real ASINs are 10 alphanumeric chars starting with B
-    if asin and not re.match(r'^B[A-Z0-9]{9}$', asin, re.IGNORECASE):
-        asin = None
-    if asin:
-        try:
-            metadata["amazon"] = scrape_amazon_metadata(asin)
-        except Exception as e:
-            app.logger.error(f"Amazon scrape failed for ASIN {asin}: {e}")
-            metadata["amazon"] = None
-
     return jsonify(metadata)
+
+
+@app.route("/api/ebooks/<path:s3_key>/amazon", methods=["GET"])
+@auth_required
+def get_ebook_amazon(s3_key):
+    """Return Amazon metadata for an EPUB file."""
+    if not s3_key.lower().endswith(".epub"):
+        return jsonify({"error": "Only EPUB files are supported"}), 400
+
+    try:
+        epub_path, _ = get_cached_epub(s3_key)
+        asin = get_epub_asin(epub_path)
+    except FileNotFoundError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        app.logger.error(f"Error reading EPUB for ASIN lookup {s3_key}: {e}")
+        return jsonify({"error": "Failed to read EPUB"}), 500
+
+    logger.info("Amazon lookup for %s: ASIN=%r", s3_key, asin)
+    if not asin:
+        return jsonify({"error": "No ASIN found for this book"}), 404
+
+    try:
+        result = scrape_amazon_metadata(asin)
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Amazon scrape failed for ASIN {asin}: {e}")
+        return jsonify({"error": "Failed to scrape Amazon metadata"}), 502
 
 
 @app.route("/api/ebooks/<path:s3_key>/cover", methods=["GET"])
