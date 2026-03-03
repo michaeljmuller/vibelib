@@ -63,6 +63,8 @@ Additional book metadata:
  - publication date (optional)
  - acquisition date
  - isbn
+ - asin (optional) — the Amazon Kindle ASIN that best represents this title; used for Amazon
+   metadata lookup; can be set manually for books whose files don't carry an embedded ASIN
 
 Books should be able to have an indefinite number of tags (a plain text string that marks a book as having a particular attribute).
 
@@ -89,10 +91,14 @@ Review metadata:
 Books should be able to have one or more ebooks and/or audiobooks associated with them (represented by an
 S3 object id).
 
+Each ebook file has an optional asin field recording the ASIN embedded in that specific file.
+
 Audiobooks should have a list of narrators associated with them.
 
+Each audiobook file has an optional asin field recording the ASIN for that specific audio product.
+
 An amazon info table should associate additional optional metadata from amazon.  There will only be one
-amazon asin associated with each book (even if there's multiple assets). 
+amazon asin associated with each book (even if there are multiple assets).
  - asin
  - sample time (when the data was pulled from amazon)
  - rating
@@ -134,6 +140,7 @@ erDiagram
         varchar title
         varchar language_code
         varchar isbn
+        varchar asin
         integer publication_year
         date publication_date
         date acquisition_date
@@ -167,6 +174,7 @@ erDiagram
         varchar s3_object_key UK
         varchar file_format
         bigint file_size_bytes
+        varchar asin
     }
     audiobook_files {
         bigint audiobook_file_id PK
@@ -175,6 +183,7 @@ erDiagram
         varchar file_format
         integer duration_seconds
         bigint file_size_bytes
+        varchar asin
     }
     audiobook_narrators {
         bigint audiobook_file_id FK

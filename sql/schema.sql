@@ -50,6 +50,7 @@ CREATE TABLE books (
     title VARCHAR(1000) NOT NULL,
     language_code VARCHAR(10),
     isbn VARCHAR(20),
+    asin VARCHAR(10),
     publication_year INTEGER,
     publication_date DATE,
     acquisition_date DATE,
@@ -58,6 +59,8 @@ CREATE TABLE books (
     search_vector tsvector,
     CONSTRAINT chk_title_not_empty CHECK (LENGTH(TRIM(title)) > 0),
     CONSTRAINT chk_isbn_format CHECK (isbn IS NULL OR isbn ~ '^[0-9X\-]{10,17}$'),
+    CONSTRAINT chk_asin_format CHECK (asin IS NULL OR asin ~ '^[A-Z0-9]{10}$'),
+    CONSTRAINT uq_book_asin UNIQUE(asin),
     CONSTRAINT chk_publication_year_range CHECK (
         publication_year IS NULL OR
         (publication_year >= 1000 AND publication_year <= EXTRACT(YEAR FROM NOW()) + 5)
@@ -114,8 +117,10 @@ CREATE TABLE ebook_files (
     s3_object_key VARCHAR(1024) NOT NULL,
     file_format VARCHAR(20) NOT NULL,
     file_size_bytes BIGINT,
+    asin VARCHAR(10),
     CONSTRAINT chk_s3_object_key_not_empty CHECK (LENGTH(TRIM(s3_object_key)) > 0),
     CONSTRAINT chk_file_size_positive CHECK (file_size_bytes IS NULL OR file_size_bytes > 0),
+    CONSTRAINT chk_asin_format CHECK (asin IS NULL OR asin ~ '^[A-Z0-9]{10}$'),
     CONSTRAINT uq_ebook_s3_object_key UNIQUE(s3_object_key)
 );
 
@@ -127,9 +132,11 @@ CREATE TABLE audiobook_files (
     file_format VARCHAR(20) NOT NULL,
     duration_seconds INTEGER,
     file_size_bytes BIGINT,
+    asin VARCHAR(10),
     CONSTRAINT chk_s3_object_key_not_empty CHECK (LENGTH(TRIM(s3_object_key)) > 0),
     CONSTRAINT chk_duration_positive CHECK (duration_seconds IS NULL OR duration_seconds > 0),
     CONSTRAINT chk_file_size_positive CHECK (file_size_bytes IS NULL OR file_size_bytes > 0),
+    CONSTRAINT chk_asin_format CHECK (asin IS NULL OR asin ~ '^[A-Z0-9]{10}$'),
     CONSTRAINT uq_audiobook_s3_object_key UNIQUE(s3_object_key)
 );
 
@@ -198,6 +205,7 @@ CREATE INDEX idx_series_name ON series(name);
 -- Books indexes
 CREATE INDEX idx_books_title ON books(title);
 CREATE INDEX idx_books_isbn ON books(isbn) WHERE isbn IS NOT NULL;
+CREATE INDEX idx_books_asin ON books(asin) WHERE asin IS NOT NULL;
 CREATE INDEX idx_books_publication_year ON books(publication_year) WHERE publication_year IS NOT NULL;
 CREATE INDEX idx_books_acquisition_date ON books(acquisition_date) WHERE acquisition_date IS NOT NULL;
 CREATE INDEX idx_books_search_vector ON books USING GIN(search_vector);
