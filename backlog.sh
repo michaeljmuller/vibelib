@@ -7,5 +7,5 @@ BACKLOG_PORT=6555
 lsof -tiTCP:${BACKLOG_PORT} -sTCP:LISTEN | xargs kill
 
 # run backlog
-cd ${SCRIPT_DIR}/tasks/backlog && backlog browser --port ${BACKLOG_PORT} &
+cd ${SCRIPT_DIR} && backlog browser --port ${BACKLOG_PORT} &
 

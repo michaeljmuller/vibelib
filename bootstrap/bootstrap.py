@@ -15,6 +15,11 @@ import psycopg2
 # Verify common/ is importable at startup (shared library used throughout the pipeline)
 import common  # noqa: F401
 
+from ingest_epub import process_epub
+from ingest_m4b import process_m4b
+from run_context import load_context
+from s3_cache import list_s3_objects
+
 
 REQUIRED_ENV_VARS = [
     'S3_BUCKET',
@@ -112,8 +117,31 @@ def main():
 
 
 def run(config):
-    """Main ingestion pipeline entry point (to be implemented)."""
-    raise NotImplementedError('Ingestion pipeline not yet implemented')
+    """Main ingestion pipeline: enumerate S3 objects and ingest each file."""
+    conn = psycopg2.connect(config['database_url'])
+    try:
+        ctx = load_context(conn, config)
+        print(
+            f'Loaded context: {len(ctx.book_records)} books, '
+            f'{len(ctx.author_records)} authors'
+        )
+
+        for s3_key, size, last_modified, etag in list_s3_objects(
+            config['s3_bucket'],
+            limit_keys=config['limit_keys'],
+            max_files=config['max_files'],
+        ):
+            if s3_key.lower().endswith('.epub'):
+                process_epub(conn, ctx, s3_key, size, last_modified, etag)
+            elif s3_key.lower().endswith('.m4b'):
+                process_m4b(conn, ctx, s3_key, size, last_modified, etag)
+
+        print(
+            f'Done: {ctx.created} created, {ctx.matched} matched, '
+            f'{ctx.errors} errors, {ctx.skipped} skipped'
+        )
+    finally:
+        conn.close()
 
 
 if __name__ == '__main__':

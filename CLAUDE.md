@@ -11,8 +11,9 @@ There is also a readme at the top level of this project.
 ## Project Management
 
 Tasks are managed by "backlog.md"; see:
- - tasks/CLAUDE.md for more info
- - tasks/backlog/ is the backlog working dir
+ - backlog/CLAUDE.md for more info
+ - backlog/ is the backlog working dir (at the repo root)
+ - Run `backlog` commands from the repo root — the CLI finds the project automatically
 
 You may pull tasks assigned to you from "To do", promoting them to "In progress",
 but you should not do so unless you have no in-progress tasks assigned to you.
