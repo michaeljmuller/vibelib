@@ -184,6 +184,35 @@ CREATE TABLE amazon_metadata (
 );
 
 -- ============================================================================
+-- BOOTSTRAP TOOL TABLES
+-- ============================================================================
+
+-- Tracks every S3 object that has been fully processed; primary key enforces idempotency.
+CREATE TABLE bootstrap_progress (
+    s3_object_key   VARCHAR(1024) PRIMARY KEY,
+    processed_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    outcome         VARCHAR(20) NOT NULL,
+    book_id         BIGINT REFERENCES books(book_id) ON DELETE SET NULL,
+    CONSTRAINT chk_bootstrap_outcome CHECK (outcome IN ('created', 'matched', 'error'))
+);
+
+-- Records problems encountered during a bootstrap run for operator review.
+CREATE TABLE bootstrap_issues (
+    issue_id        BIGSERIAL PRIMARY KEY,
+    s3_object_key   VARCHAR(1024) NOT NULL,
+    book_id         BIGINT REFERENCES books(book_id) ON DELETE SET NULL,
+    category        VARCHAR(50) NOT NULL,
+    detail          TEXT NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved        BOOLEAN NOT NULL DEFAULT FALSE,
+    resolved_at     TIMESTAMPTZ,
+    resolution_note TEXT,
+    CONSTRAINT chk_bootstrap_issue_category CHECK (
+        category IN ('no_metadata', 'match_conflict', 'amazon_captcha', 'amazon_error', 'extract_error')
+    )
+);
+
+-- ============================================================================
 -- INDEXES
 -- ============================================================================
 
@@ -247,6 +276,15 @@ CREATE INDEX idx_reviews_num_stars ON reviews(num_stars) WHERE num_stars IS NOT 
 -- Amazon metadata indexes
 CREATE INDEX idx_amazon_metadata_asin ON amazon_metadata(asin);
 CREATE INDEX idx_amazon_metadata_sample_time ON amazon_metadata(sample_time);
+
+-- Bootstrap progress indexes
+CREATE INDEX idx_bootstrap_progress_book_id ON bootstrap_progress(book_id) WHERE book_id IS NOT NULL;
+
+-- Bootstrap issues indexes
+CREATE INDEX idx_bootstrap_issues_s3_object_key ON bootstrap_issues(s3_object_key);
+CREATE INDEX idx_bootstrap_issues_book_id ON bootstrap_issues(book_id) WHERE book_id IS NOT NULL;
+CREATE INDEX idx_bootstrap_issues_category ON bootstrap_issues(category);
+CREATE INDEX idx_bootstrap_issues_unresolved ON bootstrap_issues(resolved) WHERE resolved = FALSE;
 
 -- ============================================================================
 -- TRIGGERS AND FUNCTIONS
