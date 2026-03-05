@@ -18,6 +18,7 @@ import common  # noqa: F401
 from enrich_amazon import build_catchup_queue, enrich_book_amazon
 from ingest_epub import process_epub
 from ingest_m4b import process_m4b
+from reporter import print_report
 from run_context import load_context
 from s3_cache import list_s3_objects
 
@@ -127,11 +128,16 @@ def run(config):
             f'{len(ctx.author_records)} authors'
         )
 
-        for s3_key, size, last_modified, etag in list_s3_objects(
+        # Collect all S3 objects upfront so we know the total for progress reporting
+        all_objects = list(list_s3_objects(
             config['s3_bucket'],
             limit_keys=config['limit_keys'],
             max_files=config['max_files'],
-        ):
+        ))
+        ctx.total_files = len(all_objects)
+        print(f'S3 objects to process: {ctx.total_files}')
+
+        for s3_key, size, last_modified, etag in all_objects:
             if s3_key.lower().endswith('.epub'):
                 process_epub(conn, ctx, s3_key, size, last_modified, etag)
             elif s3_key.lower().endswith('.m4b'):
@@ -141,16 +147,12 @@ def run(config):
         if not config.get('dry_run'):
             catchup = build_catchup_queue(conn)
             if catchup:
-                print(f'Catch-up: {len(catchup)} book(s) with ASIN missing amazon_metadata')
+                ctx.amazon_total = len(catchup)
+                print(f'Catch-up: {ctx.amazon_total} book(s) with ASIN missing amazon_metadata')
                 for book_id, asin, s3_key in catchup:
                     enrich_book_amazon(conn, ctx, s3_key, book_id, asin, config)
 
-        print(
-            f'Done: {ctx.created} created, {ctx.matched} matched, '
-            f'{ctx.errors} errors, {ctx.skipped} skipped | '
-            f'Amazon: {ctx.amazon_succeeded} ok, {ctx.amazon_failed} failed, '
-            f'{ctx.amazon_skipped} skipped'
-        )
+        print_report(conn, ctx)
     finally:
         conn.close()
 

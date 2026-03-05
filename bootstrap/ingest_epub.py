@@ -15,6 +15,7 @@ import re
 
 from common.epub import extract_epub_metadata
 from enrich_amazon import enrich_book_amazon
+from reporter import log_progress
 from db_helpers import (
     check_already_processed,
     create_book,
@@ -66,6 +67,7 @@ def process_epub(conn, ctx, s3_key, size, last_modified, etag):
     if check_already_processed(conn, s3_key):
         logger.info('Skipping already-processed: %s', s3_key)
         ctx.skipped += 1
+        log_progress(ctx, 'skipped', _title_from_key(s3_key), [])
         return
 
     # 2. Download via ETag cache
@@ -80,6 +82,7 @@ def process_epub(conn, ctx, s3_key, size, last_modified, etag):
             record_issue(conn, s3_key, None, 'extract_error', str(exc))
             record_progress(conn, s3_key, 'error', None)
         ctx.errors += 1
+        log_progress(ctx, 'error', _title_from_key(s3_key), [])
         return
 
     raw_title = meta.get('title')
@@ -150,6 +153,7 @@ def process_epub(conn, ctx, s3_key, size, last_modified, etag):
         ctx.matched += 1
 
     logger.info('%s %s → book_id=%d', outcome.upper(), s3_key, book_id)
+    log_progress(ctx, outcome, title, authors)
 
     if asin and not ctx.config.get('dry_run'):
         enrich_book_amazon(conn, ctx, s3_key, book_id, asin, ctx.config)

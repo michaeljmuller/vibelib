@@ -5,6 +5,7 @@ Loaded once at startup from the database, then updated incrementally as new
 books and authors are created, so that later files can match against them.
 """
 
+import time
 from dataclasses import dataclass, field
 
 
@@ -26,6 +27,12 @@ class RunContext:
     amazon_succeeded: int = 0
     amazon_failed: int = 0
     amazon_skipped: int = 0  # no ASIN
+    # Progress tracking (set by bootstrap.py before the ingestion loop)
+    total_files: int = 0
+    processed_files: int = 0
+    start_time: float = field(default_factory=time.time)
+    amazon_total: int = 0    # set before the catch-up Amazon loop
+    amazon_current: int = 0  # incremented by log_amazon_start
 
     def add_book(self, book_id, title, author_names):
         """Add a newly created book to the in-memory cache."""

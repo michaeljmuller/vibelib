@@ -17,6 +17,7 @@ import time
 from common.matching import normalize_title
 from db_helpers import record_issue
 from rapidfuzz import fuzz
+from reporter import log_amazon_failed, log_amazon_ok, log_amazon_start
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,7 @@ def enrich_book_amazon(conn, ctx, s3_key, book_id, asin, config):
     # Rate-limiting delay
     delay = random.uniform(config['amazon_delay_min'], config['amazon_delay_max'])
     logger.info('Amazon: sleeping %.1fs then scraping ASIN %s', delay, asin)
+    log_amazon_start(ctx, asin)
     time.sleep(delay)
 
     # Lazy import so the module is importable without playwright installed
@@ -138,20 +140,24 @@ def enrich_book_amazon(conn, ctx, s3_key, book_id, asin, config):
     try:
         data = scrape_amazon_metadata(asin)
     except RuntimeError as exc:
-        if 'CAPTCHA' in str(exc).upper():
+        reason = str(exc)
+        if 'CAPTCHA' in reason.upper():
             logger.warning('Amazon CAPTCHA for ASIN %s', asin)
             with conn:
-                record_issue(conn, s3_key, book_id, 'amazon_captcha', str(exc))
+                record_issue(conn, s3_key, book_id, 'amazon_captcha', reason)
         else:
             logger.warning('Amazon error for ASIN %s: %s', asin, exc)
             with conn:
-                record_issue(conn, s3_key, book_id, 'amazon_error', str(exc))
+                record_issue(conn, s3_key, book_id, 'amazon_error', reason)
+        log_amazon_failed(ctx, asin, reason)
         ctx.amazon_failed += 1
         return
     except Exception as exc:
+        reason = str(exc)
         logger.warning('Amazon error for ASIN %s: %s', asin, exc)
         with conn:
-            record_issue(conn, s3_key, book_id, 'amazon_error', str(exc))
+            record_issue(conn, s3_key, book_id, 'amazon_error', reason)
+        log_amazon_failed(ctx, asin, reason)
         ctx.amazon_failed += 1
         return
 
@@ -193,6 +199,7 @@ def enrich_book_amazon(conn, ctx, s3_key, book_id, asin, config):
                 )
 
     ctx.amazon_succeeded += 1
+    log_amazon_ok(ctx, asin, data)
     logger.info(
         'Amazon OK ASIN %s — rating=%s, pages=%s, series=%r',
         asin, data.get('rating'), data.get('pages'), series_text,

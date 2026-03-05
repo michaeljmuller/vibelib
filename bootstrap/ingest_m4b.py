@@ -20,6 +20,7 @@ import re
 import mutagen.mp4
 
 from enrich_amazon import enrich_book_amazon
+from reporter import log_progress
 from db_helpers import (
     check_already_processed,
     create_book,
@@ -97,6 +98,7 @@ def process_m4b(conn, ctx, s3_key, size, last_modified, etag):
     if check_already_processed(conn, s3_key):
         logger.info('Skipping already-processed: %s', s3_key)
         ctx.skipped += 1
+        log_progress(ctx, 'skipped', _title_from_key(s3_key), [])
         return
 
     # 2. Download via ETag cache
@@ -154,6 +156,7 @@ def process_m4b(conn, ctx, s3_key, size, last_modified, etag):
         ctx.matched += 1
 
     logger.info('%s %s → book_id=%d', outcome.upper(), s3_key, book_id)
+    log_progress(ctx, outcome, title, authors)
 
     # M4B files carry no ASIN; always skip Amazon enrichment
     ctx.amazon_skipped += 1
