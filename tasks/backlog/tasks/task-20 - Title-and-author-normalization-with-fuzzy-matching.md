@@ -1,10 +1,11 @@
 ---
 id: TASK-20
 title: Title and author normalization with fuzzy matching
-status: To Do
+status: Testing
 assignee:
   - '@claude'
 created_date: '2026-03-03 21:44'
+updated_date: '2026-03-05 01:33'
 labels:
   - bootstrap
 milestone: m-1
@@ -20,8 +21,22 @@ Implement the matching logic that will be used throughout the ingestion pipeline
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 normalize_title() correctly strips articles, punctuation, and collapses whitespace
-- [ ] #2 normalize_author() correctly handles Last, First order and initial punctuation
-- [ ] #3 match_title() and match_author() return the correct best match above threshold and None below it
-- [ ] #4 Unit tests cover the cases described in the spec: P.G. vs P. G. Wodehouse, Last/First order, leading articles, near-identical titles
+- [x] #1 normalize_title() correctly strips articles, punctuation, and collapses whitespace
+- [x] #2 normalize_author() correctly handles Last, First order and initial punctuation
+- [x] #3 match_title() and match_author() return the correct best match above threshold and None below it
+- [x] #4 Unit tests cover the cases described in the spec: P.G. vs P. G. Wodehouse, Last/First order, leading articles, near-identical titles
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Implement common/matching.py with normalize_title(), normalize_author(), match_title(), match_author(), prefer_longer_name()
+2. Write unit tests in common/tests/test_matching.py covering all spec cases
+3. Run tests to verify all pass
+<!-- SECTION:PLAN:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented common/matching.py with normalize_title (lowercase, strip punctuation, strip leading articles, collapse whitespace), normalize_author (Last-First inversion, period removal to handle P.G./P. G. variants, single-initial space collapsing), match_title and match_author (rapidfuzz ratio matching with configurable threshold, exact normalized matches return score 100), and prefer_longer_name. Wrote 25 unit tests in common/tests/test_matching.py covering all spec cases including P.G./P. G. Wodehouse initials, Last/First ordering, leading article stripping, near-identical title matching, and below-threshold rejection. All 25 tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->

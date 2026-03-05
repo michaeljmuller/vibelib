@@ -12,6 +12,9 @@ import sys
 import boto3
 import psycopg2
 
+# Verify common/ is importable at startup (shared library used throughout the pipeline)
+import common  # noqa: F401
+
 
 REQUIRED_ENV_VARS = [
     'S3_BUCKET',

@@ -1,10 +1,11 @@
 ---
 id: TASK-19
 title: Extract shared library from service
-status: To Do
+status: Testing
 assignee:
   - '@claude'
 created_date: '2026-03-03 21:44'
+updated_date: '2026-03-05 01:33'
 labels:
   - bootstrap
 milestone: m-1
@@ -20,8 +21,23 @@ The service/app.py currently contains all S3, EPUB extraction, ASIN extraction, 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 common/ package exists and is importable
-- [ ] #2 All listed functions are in common/ and removed from service/app.py (service imports them from common/)
-- [ ] #3 The service layer still functions correctly after the refactor (existing endpoints return the same responses)
-- [ ] #4 bootstrap.py can import from common/ without errors
+- [x] #1 common/ package exists and is importable
+- [x] #2 All listed functions are in common/ and removed from service/app.py (service imports them from common/)
+- [x] #3 The service layer still functions correctly after the refactor (existing endpoints return the same responses)
+- [x] #4 bootstrap.py can import from common/ without errors
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Create common/ package with s3.py (get_s3_client, get_cached_epub), epub.py (extract_isbn_from_content, extract_epub_metadata, get_epub_asin, format_isbn, extract_epub_cover), amazon.py (scrape_amazon_metadata), and __init__.py re-exporting all
+2. Update service/app.py to import all moved functions from common/ and remove their implementations
+3. Update docker/Dockerfile.service to COPY common/ so the service container can find it
+4. Verify bootstrap.py can import from common/ without errors
+<!-- SECTION:PLAN:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Extracted shared logic from service/app.py into a common/ Python package at the project root. Created common/s3.py (get_s3_client, get_cached_epub — parameterized for both service and bootstrap use), common/epub.py (extract_epub_metadata, extract_isbn_from_content, get_epub_asin, format_isbn, extract_epub_cover), and common/amazon.py (scrape_amazon_metadata with in-memory cache). common/__init__.py documents the submodules without eager imports so playwright-free submodules can be imported independently. Updated service/app.py to import from common submodules and removed all moved function bodies. Updated docker/Dockerfile.service to COPY common/ before app.py. bootstrap.py imports common to verify the package is importable.
+<!-- SECTION:FINAL_SUMMARY:END -->
