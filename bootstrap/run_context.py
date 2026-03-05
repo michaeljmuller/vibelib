@@ -15,11 +15,17 @@ class RunContext:
     book_records: list = field(default_factory=list)
     # (author_id, primary_name) — one entry per author
     author_records: list = field(default_factory=list)
-    # Run counters
+    # (series_id, name) — one entry per series
+    series_records: list = field(default_factory=list)
+    # File-processing counters
     created: int = 0
     matched: int = 0
     errors: int = 0
     skipped: int = 0
+    # Amazon-enrichment counters
+    amazon_succeeded: int = 0
+    amazon_failed: int = 0
+    amazon_skipped: int = 0  # no ASIN
 
     def add_book(self, book_id, title, author_names):
         """Add a newly created book to the in-memory cache."""
@@ -28,6 +34,10 @@ class RunContext:
     def add_author(self, author_id, primary_name):
         """Add a newly created author to the in-memory cache."""
         self.author_records.append((author_id, primary_name))
+
+    def add_series(self, series_id, name):
+        """Add a newly created series to the in-memory cache."""
+        self.series_records.append((series_id, name))
 
 
 def load_context(conn, config):
@@ -56,5 +66,9 @@ def load_context(conn, config):
         cur.execute("SELECT author_id, primary_name FROM authors")
         for author_id, primary_name in cur.fetchall():
             ctx.author_records.append((author_id, primary_name))
+
+        cur.execute("SELECT series_id, name FROM series")
+        for series_id, name in cur.fetchall():
+            ctx.series_records.append((series_id, name))
 
     return ctx

@@ -1,11 +1,11 @@
 ---
 id: TASK-27
 title: Create docker/docker-compose.bootstrap.yml
-status: To Do
+status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-03-03 22:08'
-updated_date: '2026-03-05 00:57'
+updated_date: '2026-03-05 16:05'
 labels:
   - bootstrap
 milestone: m-1

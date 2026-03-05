@@ -5,6 +5,7 @@ WORKDIR /app
 COPY bootstrap/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY bootstrap/bootstrap.py .
+COPY common/ ./common/
+COPY bootstrap/*.py ./
 
 CMD ["python", "bootstrap.py"]

@@ -1,0 +1,22 @@
+services:
+  bootstrap:
+    build:
+      context: ..
+      dockerfile: bootstrap/Dockerfile
+    network_mode: "container:gluetun"
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_BUCKET=${S3_BUCKET}
+      - DATABASE_URL=${DATABASE_URL}
+      - CACHE_DIR=/cache
+      - AMAZON_DELAY_MIN=${AMAZON_DELAY_MIN:-5}
+      - AMAZON_DELAY_MAX=${AMAZON_DELAY_MAX:-15}
+      - FUZZY_MATCH_THRESHOLD=${FUZZY_MATCH_THRESHOLD:-85}
+      - DRY_RUN=${DRY_RUN:-}
+      - LIMIT_KEYS=${LIMIT_KEYS:-}
+      - MAX_FILES=${MAX_FILES:-}
+    volumes:
+      - ${BOOTSTRAP_CACHE_DIR:-./data/bootstrap_cache}:/cache

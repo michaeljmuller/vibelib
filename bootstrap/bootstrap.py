@@ -15,6 +15,7 @@ import psycopg2
 # Verify common/ is importable at startup (shared library used throughout the pipeline)
 import common  # noqa: F401
 
+from enrich_amazon import build_catchup_queue, enrich_book_amazon
 from ingest_epub import process_epub
 from ingest_m4b import process_m4b
 from run_context import load_context
@@ -136,9 +137,19 @@ def run(config):
             elif s3_key.lower().endswith('.m4b'):
                 process_m4b(conn, ctx, s3_key, size, last_modified, etag)
 
+        # Catch-up queue: enrich any books with an ASIN that were missed
+        if not config.get('dry_run'):
+            catchup = build_catchup_queue(conn)
+            if catchup:
+                print(f'Catch-up: {len(catchup)} book(s) with ASIN missing amazon_metadata')
+                for book_id, asin, s3_key in catchup:
+                    enrich_book_amazon(conn, ctx, s3_key, book_id, asin, config)
+
         print(
             f'Done: {ctx.created} created, {ctx.matched} matched, '
-            f'{ctx.errors} errors, {ctx.skipped} skipped'
+            f'{ctx.errors} errors, {ctx.skipped} skipped | '
+            f'Amazon: {ctx.amazon_succeeded} ok, {ctx.amazon_failed} failed, '
+            f'{ctx.amazon_skipped} skipped'
         )
     finally:
         conn.close()

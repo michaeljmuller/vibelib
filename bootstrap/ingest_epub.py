@@ -14,6 +14,7 @@ import logging
 import re
 
 from common.epub import extract_epub_metadata
+from enrich_amazon import enrich_book_amazon
 from db_helpers import (
     check_already_processed,
     create_book,
@@ -149,3 +150,8 @@ def process_epub(conn, ctx, s3_key, size, last_modified, etag):
         ctx.matched += 1
 
     logger.info('%s %s → book_id=%d', outcome.upper(), s3_key, book_id)
+
+    if asin and not ctx.config.get('dry_run'):
+        enrich_book_amazon(conn, ctx, s3_key, book_id, asin, ctx.config)
+    elif not asin:
+        ctx.amazon_skipped += 1

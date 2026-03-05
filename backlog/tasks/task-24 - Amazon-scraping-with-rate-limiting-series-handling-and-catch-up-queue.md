@@ -1,11 +1,11 @@
 ---
 id: TASK-24
 title: 'Amazon scraping with rate limiting, series handling, and catch-up queue'
-status: To Do
+status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-03-03 21:45'
-updated_date: '2026-03-03 22:10'
+updated_date: '2026-03-05 16:05'
 labels:
   - bootstrap
 milestone: m-1
