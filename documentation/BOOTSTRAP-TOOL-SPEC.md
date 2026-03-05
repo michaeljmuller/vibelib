@@ -157,9 +157,10 @@ headless Chromium) is reused.  Amazon is the only source of series information d
 
 ### VPN Requirement
 
-All Amazon requests **must** exit through the gluetun VPN container.  The bootstrap container is
-run with `network_mode: "service:gluetun"`.  Running the tool directly on the host is not
-supported.
+All Amazon requests **must** exit through the gluetun VPN container.  The bootstrap container
+runs with `network_mode: "container:gluetun"`, sharing the network namespace of the running
+gluetun container (started by the main `docker/docker-compose.yml`).  Running the tool directly
+on the host is not supported.
 
 ### Series
 
@@ -393,7 +394,10 @@ Progress and match decisions are still logged so the output can be reviewed befo
 - Written in Python; lives in `bootstrap/` with its own `requirements.txt` and `Dockerfile`.
 - Shared logic (S3 client, EPUB extraction, Amazon scraping) is extracted from `service/app.py`
   into a common library rather than duplicated.
-- Run as a one-shot Docker container with `network_mode: "service:gluetun"`.
+- Run as a one-shot Docker container via a dedicated `docker/docker-compose.bootstrap.yml`.
+- Uses `network_mode: "container:gluetun"` to route traffic through the already-running gluetun
+  container from the main `docker/docker-compose.yml`.  Gluetun must be running before invoking
+  the bootstrap compose.
 
 ### `bootstrap_progress` Schema
 

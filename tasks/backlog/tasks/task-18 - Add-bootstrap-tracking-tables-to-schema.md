@@ -8,6 +8,7 @@ created_date: '2026-03-03 21:44'
 updated_date: '2026-03-03 22:07'
 labels:
   - bootstrap
+milestone: m-1
 dependencies: []
 documentation:
   - documentation/BOOTSTRAP-TOOL-SPEC.md

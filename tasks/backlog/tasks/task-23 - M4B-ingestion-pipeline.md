@@ -8,6 +8,7 @@ created_date: '2026-03-03 21:45'
 updated_date: '2026-03-03 22:07'
 labels:
   - bootstrap
+milestone: m-1
 dependencies:
   - TASK-18
   - TASK-19

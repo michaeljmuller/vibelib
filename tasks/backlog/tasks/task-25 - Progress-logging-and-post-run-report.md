@@ -7,6 +7,7 @@ assignee:
 created_date: '2026-03-03 21:46'
 labels:
   - bootstrap
+milestone: m-1
 dependencies:
   - TASK-22
   - TASK-23
