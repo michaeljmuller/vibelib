@@ -37,6 +37,8 @@ PG_PASSWORD = os.environ.get("POSTGRES_PASSWORD")
 COVERS_DIR       = os.environ.get("COVERS_DIR", "/covers")
 SCHEMA_FILE      = "/app/schema.sql"
 DOWNLOAD_WORKERS = int(os.environ.get("DOWNLOAD_WORKERS", "8"))
+POLL_INTERVAL    = int(os.environ.get("POLL_INTERVAL", "300"))
+SKIP_SCHEMA      = os.environ.get("SKIP_SCHEMA", "").lower() in ("1", "true", "yes")
 
 # ── S3 ────────────────────────────────────────────────────────────────────────
 
@@ -439,14 +441,11 @@ def process_key(key):
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def main():
-    wait_for_db()
+def run_once():
     conn = connect_db()
-    apply_schema(conn)
     s3 = make_s3()
 
-    # Collect all eligible keys first so we can show n/total
-    print("Listing bucket...", flush=True)
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Listing bucket...", flush=True)
     paginator = s3.get_paginator("list_objects_v2")
     objects = []
     for page in paginator.paginate(Bucket=S3_BUCKET):
@@ -456,29 +455,40 @@ def main():
             if lower.endswith(".epub") or lower.endswith(".m4b"):
                 objects.append(key)
 
+    epub_total = sum(1 for k in objects if k.lower().endswith(".epub"))
+    m4b_total  = sum(1 for k in objects if k.lower().endswith(".m4b"))
     total = len(objects)
-    print(f"Found {total} files to process.", flush=True)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM epubs")
+        db_epubs = cur.fetchone()[0]
+        cur.execute("SELECT count(*) FROM m4bs")
+        db_m4bs = cur.fetchone()[0]
 
     # Pre-filter already-loaded keys in the main thread before spawning workers
     keys_to_process = []
-    skip_count = 0
     for key in objects:
         kind  = "epub" if key.lower().endswith(".epub") else "m4b"
         table = "epubs" if kind == "epub" else "m4bs"
         with conn.cursor() as cur:
-            cur.execute(f"SELECT id FROM {table} WHERE s3_key = %s", (key,))
-            row = cur.fetchone()
-        if row:
-            print(f"  [{kind}] skipping (already loaded, id={row[0]}): {Path(key).name}", flush=True)
-            skip_count += 1
-        else:
-            keys_to_process.append(key)
+            cur.execute(f"SELECT 1 FROM {table} WHERE s3_key = %s", (key,))
+            if not cur.fetchone():
+                keys_to_process.append(key)
 
+    new_count = len(keys_to_process)
     print(
-        f"Skipping {skip_count} already-loaded. "
-        f"Downloading {len(keys_to_process)} files with {DOWNLOAD_WORKERS} workers.",
+        f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] "
+        f"Bucket: {total} objects ({epub_total} epubs, {m4b_total} m4bs). "
+        f"DB: {db_epubs} epubs, {db_m4bs} m4bs. "
+        f"{new_count} new.",
         flush=True,
     )
+
+    if not new_count:
+        conn.close()
+        return
+
+    print(f"Downloading {new_count} files with {DOWNLOAD_WORKERS} workers.", flush=True)
 
     epub_count = m4b_count = error_count = 0
     completed = 0
@@ -488,9 +498,8 @@ def main():
         for future in concurrent.futures.as_completed(future_to_key):
             key = future_to_key[future]
             completed += 1
-            n = skip_count + completed
             kind = "epub" if key.lower().endswith(".epub") else "m4b"
-            print(f"[{n}/{total}] [{kind}] {key}", flush=True)
+            print(f"[{completed}/{new_count}] [{kind}] {key}", flush=True)
             try:
                 result = future.result()
                 _, kind, *rest = result
@@ -515,7 +524,24 @@ def main():
                 conn.rollback()
 
     conn.close()
-    print(f"\nDone. {epub_count} epubs, {m4b_count} m4bs, {skip_count} skipped, {error_count} errors.", flush=True)
+    print(
+        f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] "
+        f"Run complete: {epub_count} epubs, {m4b_count} m4bs, {error_count} errors.",
+        flush=True,
+    )
+
+
+def main():
+    wait_for_db()
+    if not SKIP_SCHEMA:
+        conn = connect_db()
+        apply_schema(conn)
+        conn.close()
+
+    print(f"Polling every {POLL_INTERVAL}s. Set POLL_INTERVAL to change.", flush=True)
+    while True:
+        run_once()
+        time.sleep(POLL_INTERVAL)
 
 if __name__ == "__main__":
     main()

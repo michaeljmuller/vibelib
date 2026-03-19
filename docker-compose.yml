@@ -25,6 +25,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       COVERS_DIR: /covers
       DOWNLOAD_WORKERS: ${DOWNLOAD_WORKERS:-8}
+      SKIP_SCHEMA: ${SKIP_SCHEMA:-true}
     volumes:
       - ./data/covers:/covers
     depends_on:
