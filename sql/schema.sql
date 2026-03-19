@@ -1,6 +1,67 @@
 -- ebooks metadata schema
 -- Raw data as extracted from the epub OPF; normalization happens externally.
 
+-- ---------------------------------------------------------------------------
+-- Abstract book schema
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS authors (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT    NOT NULL,
+    sort_name   TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_authors_sort_name ON authors(sort_name);
+
+CREATE TABLE IF NOT EXISTS author_pseudonyms (
+    pseudonym_id    INT NOT NULL REFERENCES authors(id) ON DELETE CASCADE,
+    author_id       INT NOT NULL REFERENCES authors(id) ON DELETE CASCADE,
+    PRIMARY KEY (pseudonym_id, author_id)
+);
+
+CREATE TABLE IF NOT EXISTS narrators (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT    NOT NULL,
+    sort_name   TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_narrators_sort_name ON narrators(sort_name);
+
+CREATE TABLE IF NOT EXISTS series (
+    id                SERIAL PRIMARY KEY,
+    name              TEXT    NOT NULL,
+    sort_name         TEXT    NOT NULL,
+    highest_position  INT,                    -- total books in series, manually curated
+    is_complete       BOOLEAN                 -- null = unknown, true/false = known
+);
+
+CREATE INDEX IF NOT EXISTS idx_series_sort_name ON series(sort_name);
+
+CREATE TABLE IF NOT EXISTS books (
+    id               SERIAL PRIMARY KEY,
+    title            TEXT    NOT NULL,
+    sort_title       TEXT    NOT NULL,
+    series_id        INT     REFERENCES series(id) ON DELETE SET NULL,
+    series_position  NUMERIC(6,2)             -- allows half-steps like 1.5
+);
+
+CREATE INDEX IF NOT EXISTS idx_books_sort_title  ON books(sort_title);
+CREATE INDEX IF NOT EXISTS idx_books_series_id   ON books(series_id);
+
+CREATE TABLE IF NOT EXISTS book_authors (
+    book_id     INT      NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+    author_id   INT      NOT NULL REFERENCES authors(id) ON DELETE CASCADE,
+    position    SMALLINT NOT NULL DEFAULT 1,  -- ordering when multiple authors credited
+    PRIMARY KEY (book_id, author_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_book_authors_author_id ON book_authors(author_id);
+
+
+-- ---------------------------------------------------------------------------
+-- Raw epub/m4b tables (loader-populated; book_id linked by manual curation)
+-- ---------------------------------------------------------------------------
+
 CREATE TABLE IF NOT EXISTS epubs (
     id              SERIAL PRIMARY KEY,
     s3_key          TEXT        NOT NULL UNIQUE, -- full object key in the S3 bucket
@@ -70,3 +131,28 @@ CREATE TABLE IF NOT EXISTS m4b_chapters (
 );
 
 CREATE INDEX IF NOT EXISTS idx_m4b_chapters_m4b_id ON m4b_chapters(m4b_id);
+
+CREATE TABLE IF NOT EXISTS m4b_narrators (
+    m4b_id      INT      NOT NULL REFERENCES m4bs(id) ON DELETE CASCADE,
+    narrator_id INT      NOT NULL REFERENCES narrators(id) ON DELETE CASCADE,
+    position    SMALLINT NOT NULL DEFAULT 1,  -- ordering when multiple narrators credited
+    PRIMARY KEY (m4b_id, narrator_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_m4b_narrators_narrator_id ON m4b_narrators(narrator_id);
+
+-- ---------------------------------------------------------------------------
+-- Curation joins: link raw epub/m4b records to abstract books
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS book_epubs (
+    book_id     INT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+    epub_id     INT NOT NULL REFERENCES epubs(id) ON DELETE CASCADE,
+    PRIMARY KEY (book_id, epub_id)
+);
+
+CREATE TABLE IF NOT EXISTS book_m4bs (
+    book_id     INT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+    m4b_id      INT NOT NULL REFERENCES m4bs(id) ON DELETE CASCADE,
+    PRIMARY KEY (book_id, m4b_id)
+);
