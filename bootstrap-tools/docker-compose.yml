@@ -1,0 +1,56 @@
+services:
+  epub-downloader:
+    build:
+      context: .
+      dockerfile: Dockerfile.epub-downloader
+    env_file: ../.env
+    environment:
+      OUTPUT_DIR: /output
+      EPUB_LIMIT: "15"
+    volumes:
+      - /tmp/vibelib-epubs:/output
+
+  m4b-downloader:
+    build:
+      context: .
+      dockerfile: Dockerfile.m4b
+    env_file: ../.env
+    environment:
+      OUTPUT_DIR: /output
+      M4B_LIMIT: "15"
+    volumes:
+      - /tmp/vibelib-m4bs:/output
+
+  m4b-metadata:
+    build:
+      context: .
+      dockerfile: Dockerfile.m4b
+    command: python extract_m4b_metadata.py
+    environment:
+      M4B_DIR: /m4bs
+      OUTPUT_FILE: /output/audiobooks-metadata.txt
+    volumes:
+      - /tmp/vibelib-m4bs:/m4bs:ro
+      - ../docs:/output
+
+  epub-covers:
+    build:
+      context: .
+      dockerfile: Dockerfile.epub-downloader
+    command: python find_covers.py
+    environment:
+      EPUB_DIR: /epubs
+    volumes:
+      - /tmp/vibelib-epubs:/epubs:ro
+
+  epub-metadata:
+    build:
+      context: .
+      dockerfile: Dockerfile.epub-downloader
+    command: python extract_metadata.py
+    environment:
+      EPUB_DIR: /epubs
+      OUTPUT_FILE: /output/ebooks-metadata.md
+    volumes:
+      - /tmp/vibelib-epubs:/epubs:ro
+      - ../docs:/output

@@ -1,0 +1,6 @@
+FROM python:3.12-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg atomicparsley mediainfo && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir boto3 mutagen
+WORKDIR /app
+COPY download_m4bs.py extract_m4b_metadata.py ./
+CMD ["python", "download_m4bs.py"]

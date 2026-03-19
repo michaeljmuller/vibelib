@@ -1,0 +1,355 @@
+M4B Metadata Findings
+============================================================
+Inspected 15 file(s).
+
+File: 2 Lies, 2 Thrones.m4b
+------------------------------------------------------------
+  duration:    33249s
+  bitrate:     125 kbps
+  sample_rate: 44100 Hz
+  channels:    2
+  title                2 Lies, 2 Thrones
+  artist               Eric Ugland
+  album_artist         Eric Ugland
+  composer             Neil Hellegers
+  album                2 Lies, 2 Thrones (Unabridged)
+  date                 2024
+  ©too                 Lavf59.8.100
+  comment              Turns out jail really puts a damper on your plans.
+ Clyde Hatchett's latest adventure finds him wrongfully imprisoned...
+  genre                Audiobook
+  copyright            ©2024 Eric Ugland (P)2024 Tantor
+  description          Turns out jail really puts a damper on your plans.
+ Clyde Hatchett's latest adventure finds him wrongfully imprisoned...
+  cpil                 False
+  cover_art            [1 cover image(s)]
+  track_number         (1, 0)
+  [unrecognised atoms: ©too, cpil]
+
+File: A Gentleman in Moscow.m4b
+------------------------------------------------------------
+  duration:    64383s
+  bitrate:     62 kbps
+  sample_rate: 22050 Hz
+  channels:    2
+  title                A Gentleman in Moscow
+  artist               Amor Towles
+  album_artist         Amor Towles
+  composer             Nicholas Guy Smith
+  album                A Gentleman in Moscow (Unabridged)
+  date                 2016
+  ©too                 Lavf59.8.100
+  comment              The mega-best seller with more than two million readers, soon to be a major television series.
+ From the number one N...
+  genre                Audiobook
+  copyright            ©2016 Amor Towles (P)2016 Penguin Audio
+  description          The mega-best seller with more than two million readers, soon to be a major television series.
+ From the number one N...
+  cpil                 False
+  cover_art            [1 cover image(s)]
+  track_number         (1, 0)
+  [unrecognised atoms: ©too, cpil]
+
+File: A Memory Called Empire.m4b
+------------------------------------------------------------
+  duration:    56543s
+  bitrate:     125 kbps
+  sample_rate: 44100 Hz
+  channels:    2
+  title                A Memory Called Empire
+  artist               Arkady Martine
+  album_artist         Arkady Martine
+  composer             Amy Landon
+  album                A Memory Called Empire: Teixcalaan, Book 1
+  date                 2019
+  ©too                 Lavf58.48.100
+  comment              Winner of the 2020 Hugo Award for Best Novel A Locus, and Nebula Award nominee for 2019 A Best Book of 2019: Library ...
+  genre                Audiobook
+  copyright            ©2019 AnnaLinden Weller (P)2019 Macmillan Audio
+  description          Winner of the 2020 Hugo Award for Best Novel A Locus, and Nebula Award nominee for 2019 A Best Book of 2019: Library ...
+  cpil                 False
+  cover_art            [1 cover image(s)]
+  track_number         (1, 0)
+  [unrecognised atoms: ©too, cpil]
+
+File: A Morbid Taste for Bones.m4b
+------------------------------------------------------------
+  duration:    31514s
+  bitrate:     62 kbps
+  sample_rate: 22050 Hz
+  channels:    2
+  title                A Morbid Taste for Bones
+  artist               Ellis Peters
+  album_artist         Ellis Peters
+  composer             Patrick Tull
+  album                A Morbid Taste for Bones (Unabridged)
+  date                 2009
+  ©too                 Lavf59.8.100
+  comment              Cadfael's return to his Welsh homeland for a visit proves a rather discomfiting homecoming when an honorable nobleman...
+  genre                Audiobook
+  copyright            ©1977 Ellis Peters (P)1991 Recorded Books, LLC
+  description          Cadfael's return to his Welsh homeland for a visit proves a rather discomfiting homecoming when an honorable nobleman...
+  cpil                 False
+  cover_art            [1 cover image(s)]
+  track_number         (1, 0)
+  [unrecognised atoms: ©too, cpil]
+
+File: A Prayer for the Crown-Shy.m4b
+------------------------------------------------------------
+  duration:    14035s
+  bitrate:     125 kbps
+  sample_rate: 44100 Hz
+  channels:    2
+  title                A Prayer for the Crown-Shy
+  artist               Becky Chambers
+  album_artist         Becky Chambers
+  composer             Em Grosland
+  album                A Prayer for the Crown-Shy: A Monk and Robot Book, Book 2
+  date                 2022
+  ©too                 Lavf59.8.100
+  comment              A Prayer for the Crown-Shy is a story of kindness and love from one of the foremost practitioners of hopeful SF.
+ Aft...
+  genre                Audiobook
+  copyright            ©2022 Becky Chambers (P)2022 Macmillan Audio
+  description          A Prayer for the Crown-Shy is a story of kindness and love from one of the foremost practitioners of hopeful SF.
+ Aft...
+  cpil                 False
+  cover_art            [1 cover image(s)]
+  track_number         (1, 0)
+  [unrecognised atoms: ©too, cpil]
+
+File: A Psalm for the Wild-Built.m4b
+------------------------------------------------------------
+  duration:    14910s
+  bitrate:     125 kbps
+  sample_rate: 44100 Hz
+  channels:    2
+  title                A Psalm for the Wild-Built: Monk & Robot, Book 1
+  artist               Becky Chambers
+  album_artist         Becky Chambers
+  composer             Emmett Grosland
+  album                A Psalm for the Wild-Built: Monk & Robot, Book 1
+  date                 2021
+  ©too                 Lavf58.48.100
+  comment              <p>It's been centuries since the robots of Panga gained self-awareness and laid down their tools; centuries since the...
+  genre                Audiobook
+  copyright            ©2021 Becky Chambers (P)2021 Macmillan Audio
+  [unrecognised atoms: ©too]
+
+File: A Serpent's Tooth.m4b
+------------------------------------------------------------
+  duration:    33974s
+  bitrate:     62 kbps
+  sample_rate: 22050 Hz
+  channels:    2
+  title                A Serpent's Tooth
+  artist               Craig Johnson
+  album_artist         Craig Johnson
+  composer             George Guidall
+  album                A Serpent's Tooth (Unabridged)
+  date                 2013
+  ©too                 Lavf59.8.100
+  comment              In this ninth installment in the award-winning and New York Times best-selling Walt Longmire mystery series, the Wyom...
+  genre                Audiobook
+  copyright            ©2013 Craig Johnson (P)2013 Recorded Books
+  description          In this ninth installment in the award-winning and New York Times best-selling Walt Longmire mystery series, the Wyom...
+  cpil                 False
+  cover_art            [1 cover image(s)]
+  track_number         (1, 0)
+  [unrecognised atoms: ©too, cpil]
+
+File: A Soldier's Life, Book 1.m4b
+------------------------------------------------------------
+  duration:    46856s
+  bitrate:     125 kbps
+  sample_rate: 44100 Hz
+  channels:    2
+  title                A Soldier's Life, Book 1
+  artist               Always RollsAOne, ERICK THIEMKE
+  album_artist         Always RollsAOne, ERICK THIEMKE
+  composer             Jonathan Waters
+  album                A Soldier's Life, Book 1 (Unabridged)
+  date                 2000
+  ©too                 Lavf59.8.100
+  comment              Follow an unfortunate soul who has been thrown into a fantasy world with nothing. He is quickly railroaded into joini...
+  genre                Audiobook
+  copyright            ©2023,2024 ERICK William THIEMKE (P)2024 ERICK William THIEMKE
+  description          Follow an unfortunate soul who has been thrown into a fantasy world with nothing. He is quickly railroaded into joini...
+  cpil                 False
+  cover_art            [1 cover image(s)]
+  track_number         (1, 0)
+  [unrecognised atoms: ©too, cpil]
+
+File: A Soldier's Life, Book 2.m4b
+------------------------------------------------------------
+  duration:    55816s
+  bitrate:     125 kbps
+  sample_rate: 44100 Hz
+  channels:    2
+  title                A Soldier's Life, Book 2
+  artist               Always RollsAOne
+  album_artist         Always RollsAOne
+  composer             Jonathan Waters
+  album                A Soldier's Life, Book 2 (Unabridged)
+  date                 2000
+  ©too                 Lavf59.8.100
+  comment              The politics of the Telhian Empire are on display as Eryk and the company navigates the dangers within the Empire. Th...
+  genre                Audiobook
+  copyright            ©2024 Erick Willian Thiemke (P)2024 Erick William Thiemke
+  description          The politics of the Telhian Empire are on display as Eryk and the company navigates the dangers within the Empire. Th...
+  cpil                 False
+  cover_art            [1 cover image(s)]
+  track_number         (1, 0)
+  [unrecognised atoms: ©too, cpil]
+
+File: A Thousand Li The First Step A Cultivation Novel.m4b
+------------------------------------------------------------
+  duration:    30444s
+  bitrate:     125 kbps
+  sample_rate: 44100 Hz
+  channels:    2
+  title                A Thousand Li: The First Step: A Cultivation Novel
+  artist               Tao Wong
+  album_artist         Tao Wong
+  composer             Travis Baldree
+  album                A Thousand Li: The First Step: A Cultivation Novel: A Thousand Li, Book 1
+  date                 2019
+  ©too                 Lavf59.8.100
+  comment              Long Wu Ying never expected to join a Sect or become a real cultivator. His days were spent studying, planting rice o...
+  genre                Audiobook
+  copyright            ©2019 Tao Wong (P)2019 Tantor
+  description          Long Wu Ying never expected to join a Sect or become a real cultivator. His days were spent studying, planting rice o...
+  cpil                 False
+  cover_art            [1 cover image(s)]
+  track_number         (1, 0)
+  [unrecognised atoms: ©too, cpil]
+
+File: A Thousand Li The First Stop.m4b
+------------------------------------------------------------
+  duration:    32074s
+  bitrate:     125 kbps
+  sample_rate: 44100 Hz
+  channels:    2
+  title                A Thousand Li: The First Stop
+  artist               Tao Wong
+  album_artist         Tao Wong
+  composer             Travis Baldree
+  album                A Thousand Li: The First Stop: Thousand Li, Book 2
+  date                 2019
+  ©too                 Lavf59.8.100
+  comment              Best-selling author Tao Wong presents the second novel in the Thousand Li series.
+  genre                Audiobook
+  copyright            ©2019 Tao Wong (P)2019 Tantor
+  description          Best-selling author Tao Wong presents the second novel in the Thousand Li series.
+  cpil                 False
+  cover_art            [1 cover image(s)]
+  track_number         (1, 0)
+  [unrecognised atoms: ©too, cpil]
+
+File: A Thousand Li The First War.m4b
+------------------------------------------------------------
+  duration:    31891s
+  bitrate:     125 kbps
+  sample_rate: 44100 Hz
+  channels:    2
+  title                A Thousand Li: The First War
+  artist               Tao Wong
+  album_artist         Tao Wong
+  composer             Travis Baldree
+  album                A Thousand Li: The First War: Thousand Li Series, Book 3
+  date                 2020
+  ©too                 Lavf59.8.100
+  comment              Winter has passed, taking with it the hope of peace. The state of Wei deploy an increasing number of cultivators and ...
+  genre                Audiobook
+  copyright            ©2020 Tao Wong (P)2020 Tantor
+  description          Winter has passed, taking with it the hope of peace. The state of Wei deploy an increasing number of cultivators and ...
+  cpil                 False
+  cover_art            [1 cover image(s)]
+  track_number         (1, 0)
+  [unrecognised atoms: ©too, cpil]
+
+File: A Traitor in Skyhold.m4b
+------------------------------------------------------------
+  duration:    42791s
+  bitrate:     125 kbps
+  sample_rate: 44100 Hz
+  channels:    2
+  title                A Traitor in Skyhold
+  artist               John Bierce
+  album_artist         John Bierce
+  composer             Ralph Lister
+  album                A Traitor in Skyhold: Mage Errant, Book 3 (Unabridged)
+  date                 2020
+  ©too                 Lavf59.8.100
+  comment              Hugh and his friends have, to his great displeasure, become the center of attention among the student body at Skyhold...
+  genre                Audiobook
+  copyright            &#169;2019 John Bierce;(P)2020 Podium Publishing
+  description          Hugh and his friends have, to his great displeasure, become the center of attention among the student body at Skyhold...
+  cpil                 False
+  cover_art            [1 cover image(s)]
+  track_number         (1, 0)
+  [unrecognised atoms: ©too, cpil]
+
+File: After It Happened.m4b
+------------------------------------------------------------
+  duration:    45590s
+  bitrate:     62 kbps
+  sample_rate: 22050 Hz
+  channels:    2
+  title                After It Happened
+  artist               Devon C. Ford
+  album_artist         Devon C. Ford
+  composer             R.C. Bray
+  album                After It Happened: Publisher's Pack, Books 1 & 2 (Unabridged)
+  date                 2017
+  ©too                 Lavf59.8.100
+  comment              This omnibus edition contains Survival (book 1) and Humanity (book 2) of the After It Happened series. 
+ Survival, bo...
+  genre                Audiobook
+  copyright            &#169;2017 Devon C. Ford;(P)2017 Podium Publishing
+  description          This omnibus edition contains Survival (book 1) and Humanity (book 2) of the After It Happened series. 
+ Survival, bo...
+  cpil                 False
+  cover_art            [1 cover image(s)]
+  track_number         (1, 0)
+  [unrecognised atoms: ©too, cpil]
+
+File: Aftershocks.m4b
+------------------------------------------------------------
+  duration:    32969s
+  bitrate:     125 kbps
+  sample_rate: 44100 Hz
+  channels:    2
+  title                Aftershocks
+  artist               Marko Kloos
+  album_artist         Marko Kloos
+  composer             Luke Daniels
+  album                Aftershocks: The Palladium Wars, Book 1
+  date                 2019
+  ©too                 Lavf59.8.100
+  comment              “A new series that promises to be just as engrossing [as Frontlines]…the action just as exciting, the science just as...
+  genre                Audiobook
+  copyright            ©2019 Marko Kloos (P)2019 Brilliance Publishing, Inc., all rights reserved.
+  description          “A new series that promises to be just as engrossing [as Frontlines]…the action just as exciting, the science just as...
+  cpil                 False
+  cover_art            [1 cover image(s)]
+  track_number         (1, 0)
+  [unrecognised atoms: ©too, cpil]
+
+
+Tag frequency across 15 file(s):
+----------------------------------------
+  title                     15/15
+  artist                    15/15
+  album_artist              15/15
+  composer                  15/15
+  album                     15/15
+  date                      15/15
+  ©too                      15/15
+  comment                   15/15
+  genre                     15/15
+  copyright                 15/15
+  description               14/15
+  cpil                      14/15
+  cover_art                 14/15
+  track_number              14/15
