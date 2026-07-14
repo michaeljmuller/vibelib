@@ -13,9 +13,27 @@ const els = {
   language: document.getElementById('language'),
   format: document.getElementById('format'),
   sort: document.getElementById('sort'),
+  whoami: document.getElementById('whoami'),
 };
 
 const state = { offset: 0, total: 0, loading: false, done: false };
+
+// --- api --------------------------------------------------------------
+
+// A session that expired while the tab sat open turns every request into a 401.
+// Bounce to the login page rather than letting the UI quietly render nothing, and
+// remember where we were so signing back in returns us here.
+async function api(path) {
+  const res = await fetch(path);
+  if (res.status === 401) {
+    const here = location.pathname + location.search + location.hash;
+    location.assign(`/login?next=${encodeURIComponent(here)}`);
+    return new Promise(() => {}); // never settles; the navigation is already underway
+  }
+  return res;
+}
+
+const getJSON = async (path) => (await api(path)).json();
 
 // --- formatting -------------------------------------------------------
 
@@ -131,7 +149,7 @@ async function loadPage() {
   if (state.loading || state.done) return;
   state.loading = true;
 
-  const { total, items } = await (await fetch(`/api/books?${query()}`)).json();
+  const { total, items } = await getJSON(`/api/books?${query()}`);
   state.total = total;
   state.offset += items.length;
   state.done = state.offset >= total || items.length === 0;
@@ -280,7 +298,7 @@ function renderDetail(book) {
 
 async function open(id) {
   if (location.hash !== `#book/${id}`) history.pushState(null, '', `#book/${id}`);
-  const res = await fetch(`/api/books/${id}`);
+  const res = await api(`/api/books/${id}`);
   if (res.ok) renderDetail(await res.json());
 }
 
@@ -294,7 +312,7 @@ function closeDetail() {
 
 async function loadFilters() {
   const [series, authors, languages] = await Promise.all(
-    ['/api/series', '/api/authors', '/api/languages'].map((u) => fetch(u).then((r) => r.json())),
+    ['/api/series', '/api/authors', '/api/languages'].map(getJSON),
   );
   for (const s of series) {
     els.series.append(el('option', { value: s.id, textContent: `${s.name} (${s.book_count})` }));
@@ -338,6 +356,12 @@ new IntersectionObserver((entries) => {
   if (entries[0].isIntersecting) loadPage();
 }, { rootMargin: '600px' }).observe(els.sentinel);
 
+async function loadAccount() {
+  const { name } = await getJSON('/api/me');
+  els.whoami.textContent = name;
+}
+
+loadAccount();
 loadFilters();
 loadPage();
 const deepLink = location.hash.match(/^#book\/(\d+)$/);

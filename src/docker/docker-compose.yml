@@ -1,12 +1,23 @@
 services:
   db:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_DB: vibelib
       POSTGRES_USER: vibelib
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # A named volume rather than a bind mount to a host path. Under rootless podman
+    # the container's postgres user (uid 999) is a different uid on the host than
+    # the one that owns a directory we created, so a bind mount needs an out-of-band
+    # `podman unshare chown` to be writable at all. A named volume is created with
+    # the right ownership by the container engine, on both podman and docker, so the
+    # same compose file works on the laptop and the server with nothing to remember.
+    #
+    # Nothing is lost by not having the files on the host: a Postgres data directory
+    # cannot be copied between machines of different architectures anyway. Backups
+    # and migrations go through pg_dump (util/dump.sh), which is portable.
     volumes:
-      - ../../data/postgres:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vibelib"]
       interval: 5s
@@ -17,8 +28,14 @@ services:
     build:
       context: ../python/web
       dockerfile: ../../docker/web/Dockerfile
+    restart: unless-stopped
+    # Bound to the loopback interface, not 0.0.0.0: in production the only thing
+    # that should reach the app is the reverse proxy in front of it, on the same
+    # host. Published to the world, port 8000 would be the app minus TLS -- and
+    # since the session cookie is Secure, login over it would silently fail while
+    # /api and /download served anyone who found it.
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       PGHOST: db
       PGDATABASE: vibelib
@@ -30,6 +47,17 @@ services:
       OBJECT_STORE_BUCKET_NAME: ${OBJECT_STORE_BUCKET_NAME}
       OBJECT_STORE_BUCKET_ENDPOINT: ${OBJECT_STORE_BUCKET_ENDPOINT}
       OBJECT_STORE_BUCKET_REGION: ${OBJECT_STORE_BUCKET_REGION}
+      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID}
+      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET}
+      OAUTH_SESSION_SECRET: ${OAUTH_SESSION_SECRET}
+      # Where the app is reachable from a browser, which is what the OAuth redirect
+      # is built from. Unset means local dev; production must set it in .env to the
+      # public origin, and that value must match a redirect URI registered on the
+      # OAuth client in the Google Cloud console.
+      OAUTH_BASE_URL: ${OAUTH_BASE_URL:-http://localhost:8000}
+      # Local development only: skip Google and treat every request as this user.
+      # The app refuses to start if this is set while OAUTH_BASE_URL is https.
+      OAUTH_DEV_USER: ${OAUTH_DEV_USER:-}
     volumes:
       - ../../data/covers:/covers:ro
     depends_on:
@@ -106,3 +134,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+volumes:
+  # The library's curated metadata. The only copy that matters is the one
+  # util/dump.sh writes -- see the note on the db service above.
+  pgdata:

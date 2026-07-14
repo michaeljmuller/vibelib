@@ -1,5 +1,7 @@
-"""Read-only queries backing the browse UI. Connection parameters come from the
-standard libpq environment variables (PGHOST, PGDATABASE, PGUSER, PGPASSWORD, ...)."""
+"""Queries backing the browse UI and the sign-in gate. The library itself is read
+only; the one thing this app writes is a user's last-login timestamp. Connection
+parameters come from the standard libpq environment variables (PGHOST, PGDATABASE,
+PGUSER, PGPASSWORD, ...)."""
 
 from typing import Any
 
@@ -220,3 +222,25 @@ def get_s3_key(asset_type: str, asset_id: int) -> str | None:
             f"SELECT s3_key FROM {table} WHERE id = %s", (asset_id,)
         ).fetchone()
     return row["s3_key"] if row else None
+
+
+# --- sign-in (see migration 006 and auth.py) --------------------------------
+
+
+def get_user(email: str) -> dict[str, Any] | None:
+    """The allowlist check. None means not invited, which means not welcome."""
+    with pool.connection() as conn:
+        return conn.execute(
+            "SELECT id, email, name FROM users WHERE email = %s", (email.lower(),)
+        ).fetchone()
+
+
+def record_login(email: str, name: str | None) -> None:
+    # Refresh the cached display name while we have it: people rename their Google
+    # accounts, and COALESCE keeps whatever we already had if Google sends nothing.
+    with pool.connection() as conn:
+        conn.execute(
+            """UPDATE users SET last_login_at = now(), name = COALESCE(%s, name)
+               WHERE email = %s""",
+            (name, email.lower()),
+        )

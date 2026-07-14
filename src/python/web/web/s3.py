@@ -1,13 +1,33 @@
-"""Presigned download URLs for the book files. The bucket is the same one
-util/s3.sh talks to; s3_key is a flat object key at the bucket root."""
+"""Book files, fetched from the object store and streamed out through the app.
+
+The app is the only thing that ever talks to the bucket. Handing the browser a
+presigned URL would be less work for us, but it makes the URL itself a bearer
+token -- anyone holding it can fetch the object, logged in or not, until it
+expires -- and it leans on the corners of the S3 protocol that vary most between
+implementations (signature details, path- vs virtual-hosted addressing, whether
+the response-header overrides that set the download filename are honored).
+Proxying uses get_object and nothing else, which every S3 implementation gets
+right, so moving the library to another provider is a change of endpoint and
+region and nothing more.
+
+The bucket is the same one util/s3.sh talks to; s3_key is a flat object key at
+the bucket root.
+"""
 
 import os
+from dataclasses import dataclass
 from functools import cache
+from typing import Iterator
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
-PRESIGN_TTL_S = 300
+# Big enough that a large audiobook is not a million tiny reads, small enough
+# that a stalled client is not holding a lot of memory hostage.
+CHUNK_BYTES = 1 << 20
+
+MEDIA_TYPES = {"epub": "application/epub+zip", "m4b": "audio/mp4"}
 
 
 @cache
@@ -24,7 +44,8 @@ def _client():
         config=Config(
             signature_version="s3v4",
             connect_timeout=5,
-            read_timeout=10,
+            # No read timeout: this client now streams whole audiobooks, and a slow
+            # download is not a broken one. Connect still fails fast.
             retries={"max_attempts": 2},
         ),
     )
@@ -34,16 +55,59 @@ def _bucket() -> str:
     return os.environ["OBJECT_STORE_BUCKET_NAME"]
 
 
-def presign(s3_key: str) -> str:
-    filename = s3_key.rsplit("/", 1)[-1]
-    return _client().generate_presigned_url(
-        "get_object",
-        Params={
-            "Bucket": _bucket(),
-            "Key": s3_key,
-            "ResponseContentDisposition": f'attachment; filename="{filename}"',
-        },
-        ExpiresIn=PRESIGN_TTL_S,
+class NotFound(Exception):
+    """The key is not in the bucket."""
+
+
+class BadRange(Exception):
+    """The client asked for bytes that do not exist in the object."""
+
+
+@dataclass
+class Download:
+    body: Iterator[bytes]
+    length: int  # bytes in *this* response, which for a range request is not the object size
+    media_type: str
+    filename: str
+    content_range: str | None  # set only when the store served a partial response
+
+
+def fetch(s3_key: str, asset_type: str, range_header: str | None = None) -> Download:
+    """Open the object for streaming. Range is passed through untouched and its
+    interpretation left to the store -- audiobook players seek by asking for byte
+    ranges, and re-implementing that parsing here would only add a way to get it
+    wrong."""
+    params: dict[str, str] = {"Bucket": _bucket(), "Key": s3_key}
+    if range_header:
+        params["Range"] = range_header
+
+    try:
+        obj = _client().get_object(**params)
+    except ClientError as e:
+        code = e.response["Error"]["Code"]
+        if code in ("NoSuchKey", "404"):
+            raise NotFound(s3_key) from e
+        if code in ("InvalidRange", "416"):
+            raise BadRange(range_header) from e
+        raise
+
+    def chunks() -> Iterator[bytes]:
+        # Not `with obj["Body"] as body`: StreamingBody.__enter__ hands back the raw
+        # urllib3 response underneath, which has no iter_chunks. Close it by hand.
+        # It must be closed even when the client hangs up mid-download, or the
+        # connection is never returned to the pool.
+        body = obj["Body"]
+        try:
+            yield from body.iter_chunks(CHUNK_BYTES)
+        finally:
+            body.close()
+
+    return Download(
+        body=chunks(),
+        length=obj["ContentLength"],
+        media_type=MEDIA_TYPES.get(asset_type, "application/octet-stream"),
+        filename=s3_key.rsplit("/", 1)[-1],
+        content_range=obj.get("ContentRange"),
     )
 
 

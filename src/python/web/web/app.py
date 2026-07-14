@@ -1,18 +1,20 @@
 """FastAPI app: JSON API over the curated library, plus the static browse UI.
 
 The API is the same surface a mobile client would use; the UI in static/ is one
-consumer of it.
+consumer of it. Everything below is private -- see auth.py for the gate and who
+gets through it.
 """
 
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
-from . import covers, db, s3
+from . import auth, covers, db, s3
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -21,12 +23,31 @@ AssetType = Literal["epub", "m4b"]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Before anything is served: refuse to run in a configuration that would leave
+    # the library open to the world.
+    auth.check_dev_user()
     db.pool.open(wait=True, timeout=30)
     yield
     db.pool.close()
 
 
 app = FastAPI(title="vibelib", lifespan=lifespan)
+
+# Order matters, and reads backwards: add_middleware puts each new layer *outside*
+# the previous one, so the session must be added last to run first. RequireLogin
+# reads request.session, which does not exist until SessionMiddleware has decoded
+# the cookie.
+app.add_middleware(auth.RequireLogin)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=auth.SESSION_SECRET,
+    same_site="lax",  # survives the redirect back from Google; blocks cross-site sends
+    # Secure cookies over https, plain over a localhost dev origin -- where a Secure
+    # cookie would simply never be stored, and login would fail in a baffling way.
+    https_only=auth.BASE_URL.startswith("https://"),
+    max_age=30 * 24 * 3600,
+)
+app.include_router(auth.router)
 
 
 def _with_cover(book: dict[str, Any]) -> dict[str, Any]:
@@ -106,11 +127,36 @@ def cover(asset_type: AssetType, asset_id: int):
 
 
 @app.get("/download/{asset_type}/{asset_id}")
-def download(asset_type: AssetType, asset_id: int):
+def download(asset_type: AssetType, asset_id: int, request: Request):
     s3_key = db.get_s3_key(asset_type, asset_id)
     if s3_key is None:
         raise HTTPException(404, "no such asset")
-    return RedirectResponse(s3.presign(s3_key), status_code=302)
+
+    try:
+        obj = s3.fetch(s3_key, asset_type, request.headers.get("range"))
+    except s3.NotFound:
+        # The row says the file is there and the bucket disagrees. Whoever asked for
+        # it cannot do anything about that, so it is a 404 to them either way.
+        raise HTTPException(404, "no such asset") from None
+    except s3.BadRange:
+        raise HTTPException(416, "requested range not satisfiable") from None
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{obj.filename}"',
+        "Content-Length": str(obj.length),
+        # Advertised so audiobook players know they may seek rather than pulling a
+        # whole m4b to play the middle of it.
+        "Accept-Ranges": "bytes",
+    }
+    if obj.content_range:
+        headers["Content-Range"] = obj.content_range
+
+    return StreamingResponse(
+        obj.body,
+        status_code=206 if obj.content_range else 200,
+        media_type=obj.media_type,
+        headers=headers,
+    )
 
 
 @app.get("/")
@@ -118,4 +164,11 @@ def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/login")
+def login_page():
+    return FileResponse(STATIC_DIR / "login.html")
+
+
+# Public, unavoidably: the login page is made of these. They are the client-side
+# half of an API that is itself gated, so they give away nothing but layout.
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
