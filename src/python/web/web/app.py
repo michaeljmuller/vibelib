@@ -163,10 +163,14 @@ def download(asset_type: AssetType, asset_id: int, request: Request):
     )
 
 
-# --- the guest list (admins only; see migration 007) -------------------------
+# --- the allowlist (admins only; see migration 007) ---------------------------
+#
+# There is no invitation here, and never was: nothing is sent and nothing is
+# accepted. An email on this list means that Google account is allowed in, and
+# whoever signs in with it is through the door.
 
 
-class Invitation(BaseModel):
+class NewUser(BaseModel):
     email: EmailStr
     name: str | None = None
 
@@ -177,15 +181,15 @@ def api_users(admin: dict = Depends(auth.require_admin)):
 
 
 @app.post("/api/users", status_code=201)
-def api_invite(invitation: Invitation, admin: dict = Depends(auth.require_admin)):
-    user = db.invite_user(invitation.email, invitation.name)
+def api_add_user(new: NewUser, admin: dict = Depends(auth.require_admin)):
+    user = db.add_user(new.email, new.name)
     if user is None:
-        raise HTTPException(409, "already invited")
+        raise HTTPException(409, "already on the list")
     return user
 
 
 @app.delete("/api/users/{user_id}", status_code=204)
-def api_revoke(user_id: int, admin: dict = Depends(auth.require_admin)):
+def api_remove_user(user_id: int, admin: dict = Depends(auth.require_admin)):
     target = db.get_user_by_id(user_id)
     if target is None:
         raise HTTPException(404, "no such user")
@@ -199,7 +203,7 @@ def api_revoke(user_id: int, admin: dict = Depends(auth.require_admin)):
     if target["is_admin"]:
         raise HTTPException(409, "cannot remove another admin; use util/users.sh")
 
-    db.revoke_user(user_id)
+    db.remove_user(user_id)
 
 
 @app.get("/")

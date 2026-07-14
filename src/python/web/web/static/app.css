@@ -316,6 +316,8 @@ main { padding: 20px; }
 
 .admin { max-width: 760px; margin: 28px auto; padding: 0 20px; }
 
+.lede { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
+
 .invite { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
 
 .invite input {

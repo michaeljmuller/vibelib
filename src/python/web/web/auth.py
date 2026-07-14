@@ -57,7 +57,7 @@ PUBLIC_PREFIXES = ("/static/",)  # the login page is built out of these
 #      the library -- it stops the app from booting at all (see _check_dev_user).
 #      Fail loudly on the first deploy, rather than quietly serving the world.
 #   2. It cannot invent access. The email still has to be on the users allowlist, so
-#      the bypass skips the Google round-trip, not the invitation.
+#      the bypass skips the Google round-trip, not the allowlist.
 #   3. It says so, every single startup, in the logs.
 DEV_USER = os.environ.get("OAUTH_DEV_USER", "").strip().lower() or None
 
@@ -122,7 +122,7 @@ async def callback(request: Request):
 
     # Some Google account types can carry an address the account does not actually
     # control, flagged by this claim. Trusting an unverified one would let anyone
-    # who can create such an account walk in as any invited address.
+    # who can create such an account walk in as any allowed address.
     if not claims.get("email_verified"):
         return RedirectResponse("/login?error=unverified", status_code=302)
 
@@ -168,7 +168,7 @@ def current_user(request: Request) -> dict:
 
 
 def require_admin(request: Request) -> dict:
-    """FastAPI dependency for the routes that manage the guest list."""
+    """FastAPI dependency for the routes that manage the allowlist."""
     user = current_user(request)
     if not user["is_admin"]:
         raise HTTPException(403, "admins only")
@@ -186,20 +186,20 @@ class RequireLogin(BaseHTTPMiddleware):
         email = request.session.get("email")
 
         if email is None and DEV_USER:
-            # The bypass skips Google, not the invitation: the email still has to be
+            # The bypass skips Google, not the allowlist: the email still has to be
             # on the allowlist, checked below like anyone else's.
             email = DEV_USER
 
         # Looked up on every request rather than trusted from the cookie. The cookie
         # only proves who someone is, and it says so for a month -- but an admin who
-        # revokes an invitation means *now*, not whenever that cookie happens to
+        # takes an account off the list means *now*, not whenever that cookie happens to
         # lapse. One indexed lookup is a fair price for revocation that works.
         user = db.get_user(email) if email else None
 
         if user is None:
             if email and DEV_USER == email:
                 log.warning("OAUTH_DEV_USER=%s is not on the allowlist.", DEV_USER)
-            # Their invitation is gone (or never existed): the session is worthless,
+            # They are off the list (or never were on it): the session is worthless,
             # so do not leave it in their browser pretending otherwise.
             request.session.clear()
             return self._turn_away(request, path)

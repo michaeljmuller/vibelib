@@ -3,29 +3,31 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>vibelib &mdash; guest list</title>
+  <title>vibelib &mdash; accounts</title>
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
   <header>
     <a class="brand" href="/">vibelib</a>
-    <span class="crumb">Guest list</span>
+    <span class="crumb">Allowed accounts</span>
     <div class="account">
       <a class="signout" href="/">Back to library</a>
     </div>
   </header>
 
   <main class="admin">
-    <form id="invite" class="invite">
+    <p class="lede">Anyone who signs in with Google using one of these addresses gets in.</p>
+
+    <form id="add" class="invite">
       <input id="email" type="email" placeholder="email address" required autocomplete="off">
       <input id="name" type="text" placeholder="name (optional)" autocomplete="off">
-      <button type="submit">Invite</button>
+      <button type="submit">Allow</button>
     </form>
     <p id="msg" class="msg" hidden></p>
 
     <table class="users">
       <thead>
-        <tr><th>Email</th><th>Name</th><th>Invited</th><th>Last seen</th><th></th></tr>
+        <tr><th>Email</th><th>Name</th><th>Added</th><th>Last seen</th><th></th></tr>
       </thead>
       <tbody id="rows"></tbody>
     </table>

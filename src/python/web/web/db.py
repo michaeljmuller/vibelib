@@ -228,7 +228,7 @@ def get_s3_key(asset_type: str, asset_id: int) -> str | None:
 
 
 def get_user(email: str) -> dict[str, Any] | None:
-    """The allowlist check. None means not invited, which means not welcome."""
+    """The allowlist check. None means not on the list, which means not welcome."""
     with pool.connection() as conn:
         return conn.execute(
             "SELECT id, email, name, is_admin FROM users WHERE email = %s",
@@ -239,18 +239,18 @@ def get_user(email: str) -> dict[str, Any] | None:
 def list_users() -> list[dict[str, Any]]:
     with pool.connection() as conn:
         return conn.execute(
-            """SELECT id, email, name, is_admin, invited_on, last_login_at
-               FROM users ORDER BY invited_on, email"""
+            """SELECT id, email, name, is_admin, added_on, last_login_at
+               FROM users ORDER BY added_on, email"""
         ).fetchall()
 
 
-def invite_user(email: str, name: str | None) -> dict[str, Any] | None:
-    """Add someone to the allowlist. None if they were already on it."""
+def add_user(email: str, name: str | None) -> dict[str, Any] | None:
+    """Put a Google account on the allowlist. None if it was already there."""
     with pool.connection() as conn:
         return conn.execute(
             """INSERT INTO users (email, name) VALUES (%s, %s)
                ON CONFLICT (email) DO NOTHING
-               RETURNING id, email, name, is_admin, invited_on, last_login_at""",
+               RETURNING id, email, name, is_admin, added_on, last_login_at""",
             (email.lower(), name or None),
         ).fetchone()
 
@@ -262,10 +262,10 @@ def get_user_by_id(user_id: int) -> dict[str, Any] | None:
         ).fetchone()
 
 
-def revoke_user(user_id: int) -> None:
-    """Take someone off the allowlist. They lose access on their next request --
-    the gate re-checks this table every time, so it does not wait for their session
-    to expire."""
+def remove_user(user_id: int) -> None:
+    """Take an account off the allowlist. It loses access on its next request -- the
+    gate re-checks this table every time, so it does not wait for the session to
+    expire."""
     with pool.connection() as conn:
         conn.execute("DELETE FROM users WHERE id = %s", (user_id,))
 
