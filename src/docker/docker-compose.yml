@@ -63,6 +63,11 @@ services:
       OAUTH_DEV_USER: ${OAUTH_DEV_USER:-}
     volumes:
       - ../../data/covers:/covers:ro
+      # Mounted rather than baked into the image: the build context is
+      # src/python/web and cannot reach up to src/sql. Mounting also means a plain
+      # `git pull` on the server delivers new migrations -- no rebuild needed for
+      # a schema-only change.
+      - ../sql:/sql:ro
     depends_on:
       db:
         condition: service_healthy

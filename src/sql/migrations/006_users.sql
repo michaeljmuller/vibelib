@@ -14,7 +14,6 @@
 -- name is cached from the OpenID profile on each login so the UI can greet people
 -- by name. It is a convenience, never identity -- email is identity.
 
-BEGIN;
 
 CREATE TABLE users (
     id             SERIAL PRIMARY KEY,
@@ -24,4 +23,3 @@ CREATE TABLE users (
     last_login_at  TIMESTAMPTZ                 -- NULL until they first sign in: an invitation not yet taken up
 );
 
-COMMIT;

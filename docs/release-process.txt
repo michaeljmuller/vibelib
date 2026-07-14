@@ -1,0 +1,49 @@
+The deployment is an intel-based instance hosted by Hetzner in Europe (Germany).
+
+The application itself listens on an unencrypted port, and a Caddy reverse proxy handles certificates.
+
+Firewalls (both on the host and on Hetzner's network) prevent access to the unencrypted port.
+
+Updates are performed as follows:
+
+1) ssh to the host as user mmuller
+
+2) back up the database: cd ~/sites/vibelib && util/dump.sh
+   Do this BEFORE the pull, not after. The dump is the only copy of the curated
+   metadata, and the next step may migrate the schema.
+
+3) shut down the application: cd ~/sites/vibelib/src/docker && docker compose down
+
+4) get the latest source: cd ~/sites/vibelib && git pull
+
+5) start up the application: cd ~/sites/vibelib/src/docker && docker compose up --build -d
+
+
+Schema changes
+--------------
+
+They apply themselves. On startup the app runs any migration in src/sql/migrations
+that the database has not seen (a schema_migrations table records which), in
+filename order, before it serves a single request. Nothing to run by hand.
+
+Each migration runs inside a transaction along with the record of it, so it either
+lands and is remembered or does neither -- Postgres does DDL transactionally, which
+is what makes this safe to do automatically.
+
+If a migration fails, the app does not start. It will crash-loop, and Caddy will
+serve 502s, which is the intended outcome: a library that is down is a bad
+afternoon, but a library serving new code against a half-migrated schema is a
+corrupted one. Find out why with:
+
+    docker compose logs web | grep -i migration
+
+Then fix the migration, commit, pull, and bring it up again. The failed one left
+nothing behind, so there is no partial state to clean up first. If you need to get
+back to where you were in a hurry, that is what step 2 is for:
+
+    util/dump.sh restore ~/vibelib-<date>.dump
+
+Migrations are mounted into the container from src/sql, not baked into the image,
+so a schema-only change needs no rebuild -- but --build in step 5 is harmless and
+keeps the process one command.
+

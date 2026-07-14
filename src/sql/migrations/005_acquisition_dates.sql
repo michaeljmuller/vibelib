@@ -13,7 +13,6 @@
 -- Convention matches books.publication_date: when only the year is known,
 -- store YYYY-01-01.
 
-BEGIN;
 
 CREATE TABLE epub_acquisitions (
     epub_id      INT  PRIMARY KEY REFERENCES epubs(id) ON DELETE CASCADE,
@@ -28,4 +27,3 @@ CREATE TABLE m4b_acquisitions (
 CREATE INDEX idx_epub_acquisitions_acquired_on ON epub_acquisitions(acquired_on);
 CREATE INDEX idx_m4b_acquisitions_acquired_on  ON m4b_acquisitions(acquired_on);
 
-COMMIT;

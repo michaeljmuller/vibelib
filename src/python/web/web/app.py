@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, covers, db, s3
+from . import auth, covers, db, migrate, s3
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -27,6 +27,9 @@ async def lifespan(app: FastAPI):
     # the library open to the world.
     auth.check_dev_user()
     db.pool.open(wait=True, timeout=30)
+    # And do not serve until the schema matches the code that is about to run
+    # against it. A failure here is a failure to start, on purpose.
+    migrate.run(db.pool)
     yield
     db.pool.close()
 

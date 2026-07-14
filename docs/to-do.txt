@@ -1,3 +1,22 @@
+new features:
  - login
  - tags
  - rating?
+ - user administration
+ - user preferences (default sort order)
+ - default sort by acquisition date
+ - clean up the language filter
+ - set language filter to default to english
+ - better author selecter?
+
+to clean up:
+ - pub dates
+  - missing 
+  - jan 1
+ - acquisition dates
+  - pull from old lib
+  - pull from amazon?
+ - series membership
+  - dup series #
+  - holes
+

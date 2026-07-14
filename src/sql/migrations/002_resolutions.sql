@@ -1,7 +1,6 @@
 -- 002: resolver support — resolution log/review-queue table and trigram indexes
 -- for candidate retrieval. Run once, after 001_unify_people.sql.
 
-BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
@@ -28,4 +27,3 @@ CREATE INDEX idx_books_title_trgm ON books  USING gin (lower(title) gin_trgm_ops
 CREATE INDEX idx_people_name_trgm ON people USING gin (lower(name)  gin_trgm_ops);
 CREATE INDEX idx_series_name_trgm ON series USING gin (lower(name)  gin_trgm_ops);
 
-COMMIT;

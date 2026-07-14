@@ -9,7 +9,6 @@
 -- `people` already exists. Run once against a database created from the pre-merge
 -- schema.
 
-BEGIN;
 
 -- Guard: refuse to run if already migrated.
 DO $$
@@ -105,4 +104,3 @@ DROP TABLE authors;
 
 CREATE INDEX idx_people_sort_name ON people(sort_name);
 
-COMMIT;
