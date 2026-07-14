@@ -29,13 +29,16 @@ services:
       context: ../python/web
       dockerfile: ../../docker/web/Dockerfile
     restart: unless-stopped
-    # Bound to the loopback interface, not 0.0.0.0: in production the only thing
-    # that should reach the app is the reverse proxy in front of it, on the same
-    # host. Published to the world, port 8000 would be the app minus TLS -- and
-    # since the session cookie is Secure, login over it would silently fail while
-    # /api and /download served anyone who found it.
+    # All interfaces, because Caddy runs in its own container and reaches this over
+    # the podman gateway address rather than loopback. What keeps the port private
+    # is the host firewall: only 22, 80 and 443 are open, so 8000 is reachable from
+    # the proxy and from nowhere else.
+    #
+    # That matters, because this port is the app without TLS. The session cookie is
+    # Secure, so a browser arriving over plain http could not log in -- but /api and
+    # /download would serve anyone who got through.
     ports:
-      - "127.0.0.1:8000:8000"
+      - "8000:8000"
     environment:
       PGHOST: db
       PGDATABASE: vibelib
