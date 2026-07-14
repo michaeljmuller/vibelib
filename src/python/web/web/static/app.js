@@ -14,6 +14,7 @@ const els = {
   format: document.getElementById('format'),
   sort: document.getElementById('sort'),
   whoami: document.getElementById('whoami'),
+  guests: document.getElementById('guests'),
 };
 
 const state = { offset: 0, total: 0, loading: false, done: false };
@@ -357,8 +358,12 @@ new IntersectionObserver((entries) => {
 }, { rootMargin: '600px' }).observe(els.sentinel);
 
 async function loadAccount() {
-  const { name } = await getJSON('/api/me');
+  const { name, is_admin } = await getJSON('/api/me');
   els.whoami.textContent = name;
+  // Courtesy, not security: /admin and every /api/users route check this
+  // server-side. Hiding the link just keeps it out of the way of people it would
+  // only refuse.
+  els.guests.hidden = !is_admin;
 }
 
 loadAccount();

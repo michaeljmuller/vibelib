@@ -12,6 +12,7 @@ dependencies = [
     "authlib>=1.3",        # OAuth/OIDC client: the Google handshake, and verifying what comes back
     "httpx>=0.27",         # what authlib's starlette client makes its token calls with
     "itsdangerous>=2.2",   # signs the session cookie for starlette's SessionMiddleware
+    "pydantic[email]>=2",  # EmailStr, so a typo'd invitation is rejected rather than un-redeemable
 ]
 
 [project.optional-dependencies]

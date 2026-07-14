@@ -231,8 +231,43 @@ def get_user(email: str) -> dict[str, Any] | None:
     """The allowlist check. None means not invited, which means not welcome."""
     with pool.connection() as conn:
         return conn.execute(
-            "SELECT id, email, name FROM users WHERE email = %s", (email.lower(),)
+            "SELECT id, email, name, is_admin FROM users WHERE email = %s",
+            (email.lower(),),
         ).fetchone()
+
+
+def list_users() -> list[dict[str, Any]]:
+    with pool.connection() as conn:
+        return conn.execute(
+            """SELECT id, email, name, is_admin, invited_on, last_login_at
+               FROM users ORDER BY invited_on, email"""
+        ).fetchall()
+
+
+def invite_user(email: str, name: str | None) -> dict[str, Any] | None:
+    """Add someone to the allowlist. None if they were already on it."""
+    with pool.connection() as conn:
+        return conn.execute(
+            """INSERT INTO users (email, name) VALUES (%s, %s)
+               ON CONFLICT (email) DO NOTHING
+               RETURNING id, email, name, is_admin, invited_on, last_login_at""",
+            (email.lower(), name or None),
+        ).fetchone()
+
+
+def get_user_by_id(user_id: int) -> dict[str, Any] | None:
+    with pool.connection() as conn:
+        return conn.execute(
+            "SELECT id, email, name, is_admin FROM users WHERE id = %s", (user_id,)
+        ).fetchone()
+
+
+def revoke_user(user_id: int) -> None:
+    """Take someone off the allowlist. They lose access on their next request --
+    the gate re-checks this table every time, so it does not wait for their session
+    to expire."""
+    with pool.connection() as conn:
+        conn.execute("DELETE FROM users WHERE id = %s", (user_id,))
 
 
 def record_login(email: str, name: str | None) -> None:

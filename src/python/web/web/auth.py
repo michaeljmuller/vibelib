@@ -13,7 +13,7 @@ import os
 from urllib.parse import quote
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -150,9 +150,29 @@ async def logout(request: Request):
 
 @router.get("/api/me")
 def me(request: Request):
-    """Who the browser is signed in as. Reachable only through the gate below, so a
-    session is guaranteed to exist by the time this runs."""
-    return {"email": request.session["email"], "name": request.session["name"]}
+    """Who the browser is signed in as. Reachable only through the gate below, so the
+    user is guaranteed to have been looked up by the time this runs."""
+    user = current_user(request)
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "name": user["name"],
+        "is_admin": user["is_admin"],
+    }
+
+
+def current_user(request: Request) -> dict:
+    """The signed-in user, as the gate looked them up. Only valid behind the gate,
+    which is everywhere except PUBLIC_PATHS."""
+    return request.state.user
+
+
+def require_admin(request: Request) -> dict:
+    """FastAPI dependency for the routes that manage the guest list."""
+    user = current_user(request)
+    if not user["is_admin"]:
+        raise HTTPException(403, "admins only")
+    return user
 
 
 class RequireLogin(BaseHTTPMiddleware):
@@ -160,21 +180,36 @@ class RequireLogin(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        is_public = path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES)
-        if is_public or "email" in request.session:
+        if path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES):
             return await call_next(request)
 
-        if DEV_USER:
-            # Still checked against the allowlist: the bypass skips Google, not the
-            # invitation. An unknown OAUTH_DEV_USER falls through to the login page,
-            # which is the same answer a stranger gets.
-            user = db.get_user(DEV_USER)
-            if user:
-                request.session["email"] = user["email"]
-                request.session["name"] = user["name"] or user["email"]
-                return await call_next(request)
-            log.warning("OAUTH_DEV_USER=%s is not on the allowlist; ignoring it.", DEV_USER)
+        email = request.session.get("email")
 
+        if email is None and DEV_USER:
+            # The bypass skips Google, not the invitation: the email still has to be
+            # on the allowlist, checked below like anyone else's.
+            email = DEV_USER
+
+        # Looked up on every request rather than trusted from the cookie. The cookie
+        # only proves who someone is, and it says so for a month -- but an admin who
+        # revokes an invitation means *now*, not whenever that cookie happens to
+        # lapse. One indexed lookup is a fair price for revocation that works.
+        user = db.get_user(email) if email else None
+
+        if user is None:
+            if email and DEV_USER == email:
+                log.warning("OAUTH_DEV_USER=%s is not on the allowlist.", DEV_USER)
+            # Their invitation is gone (or never existed): the session is worthless,
+            # so do not leave it in their browser pretending otherwise.
+            request.session.clear()
+            return self._turn_away(request, path)
+
+        request.state.user = user
+        request.session["email"] = user["email"]
+        request.session["name"] = user["name"] or user["email"]
+        return await call_next(request)
+
+    def _turn_away(self, request: Request, path: str):
         # A script wants a status code it can branch on; a person wants the login
         # page, and to arrive at the page they originally asked for once they are
         # through it. Sending a 302 to an XHR would just yield the login HTML with a

@@ -310,6 +310,82 @@ main { padding: 20px; }
 
 .signout:hover { color: var(--text); background: var(--surface-2); }
 
+/* --- guest list ------------------------------------------------------- */
+
+.crumb { color: var(--muted); font-size: 14px; }
+
+.admin { max-width: 760px; margin: 28px auto; padding: 0 20px; }
+
+.invite { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+
+.invite input {
+  height: 34px;
+  padding: 0 10px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 14px;
+}
+
+.invite input[type="email"] { flex: 1 1 240px; min-width: 0; }
+.invite input[type="text"]  { flex: 1 1 160px; min-width: 0; }
+
+.invite button, .revoke {
+  height: 34px;
+  padding: 0 14px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.invite button:hover { border-color: var(--accent); }
+.revoke { height: 28px; padding: 0 10px; font-size: 13px; color: var(--muted); }
+.revoke:hover { color: #e06c75; border-color: #e06c75; }
+
+.msg {
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.msg.bad { border-left-color: #e06c75; }
+
+.users { width: 100%; margin-top: 22px; border-collapse: collapse; font-size: 14px; }
+.users th {
+  text-align: left;
+  padding: 0 10px 8px 0;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  border-bottom: 1px solid var(--line);
+}
+.users td { padding: 10px 10px 10px 0; border-bottom: 1px solid var(--line); }
+.users td.dim { color: var(--muted); }
+.users td:last-child { text-align: right; padding-right: 0; }
+
+.tag {
+  margin-left: 8px;
+  padding: 1px 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--accent);
+  font-size: 11px;
+}
+
 .login {
   max-width: 340px;
   margin: 18vh auto 0;

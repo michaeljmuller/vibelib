@@ -9,9 +9,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, EmailStr
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, covers, db, migrate, s3
@@ -162,6 +163,45 @@ def download(asset_type: AssetType, asset_id: int, request: Request):
     )
 
 
+# --- the guest list (admins only; see migration 007) -------------------------
+
+
+class Invitation(BaseModel):
+    email: EmailStr
+    name: str | None = None
+
+
+@app.get("/api/users")
+def api_users(admin: dict = Depends(auth.require_admin)):
+    return db.list_users()
+
+
+@app.post("/api/users", status_code=201)
+def api_invite(invitation: Invitation, admin: dict = Depends(auth.require_admin)):
+    user = db.invite_user(invitation.email, invitation.name)
+    if user is None:
+        raise HTTPException(409, "already invited")
+    return user
+
+
+@app.delete("/api/users/{user_id}", status_code=204)
+def api_revoke(user_id: int, admin: dict = Depends(auth.require_admin)):
+    target = db.get_user_by_id(user_id)
+    if target is None:
+        raise HTTPException(404, "no such user")
+
+    # Two ways an admin could lock themselves -- or everyone -- out of the library
+    # through this UI, so neither is reachable from it. Demoting or removing an
+    # admin is a shell operation (util/users.sh), which is a deliberate speed bump
+    # on the one action nobody can undo from a browser.
+    if target["id"] == admin["id"]:
+        raise HTTPException(409, "you cannot remove yourself")
+    if target["is_admin"]:
+        raise HTTPException(409, "cannot remove another admin; use util/users.sh")
+
+    db.revoke_user(user_id)
+
+
 @app.get("/")
 def index():
     return FileResponse(STATIC_DIR / "index.html")
@@ -170,6 +210,11 @@ def index():
 @app.get("/login")
 def login_page():
     return FileResponse(STATIC_DIR / "login.html")
+
+
+@app.get("/admin")
+def admin_page(admin: dict = Depends(auth.require_admin)):
+    return FileResponse(STATIC_DIR / "admin.html")
 
 
 # Public, unavoidably: the login page is made of these. They are the client-side
