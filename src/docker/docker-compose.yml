@@ -1,0 +1,108 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: vibelib
+      POSTGRES_USER: vibelib
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ../../data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vibelib"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: ../python/web
+      dockerfile: ../../docker/web/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      PGHOST: db
+      PGDATABASE: vibelib
+      PGUSER: vibelib
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      WEB_COVERS_DIR: /covers
+      OBJECT_STORE_ACCESS_KEY_ID: ${OBJECT_STORE_ACCESS_KEY_ID}
+      OBJECT_STORE_SECRET_ACCESS_KEY: ${OBJECT_STORE_SECRET_ACCESS_KEY}
+      OBJECT_STORE_BUCKET_NAME: ${OBJECT_STORE_BUCKET_NAME}
+      OBJECT_STORE_BUCKET_ENDPOINT: ${OBJECT_STORE_BUCKET_ENDPOINT}
+      OBJECT_STORE_BUCKET_REGION: ${OBJECT_STORE_BUCKET_REGION}
+    volumes:
+      - ../../data/covers:/covers:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # The pre-vibelib library database, restored from old-library-mysql-backup.sql
+  # so its data (notably assets.acq_date) can be mined. Read-only reference, not
+  # part of the running system — hence the profile:
+  #   docker compose up -d legacy-db
+  legacy-db:
+    image: mariadb:10.11
+    profiles: ["legacy"]
+    environment:
+      MARIADB_ROOT_PASSWORD: ${LEGACY_DB_PASSWORD:-legacy}
+      MARIADB_DATABASE: library
+    ports:
+      - "3306:3306"
+    volumes:
+      - ../../data/mariadb:/var/lib/mysql
+      # Loaded automatically, but only on first start (empty data dir).
+      - ../../old-library-mysql-backup.sql:/docker-entrypoint-initdb.d/01-library.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
+  # On-demand tool, not a long-running service:
+  #   docker compose run --rm loader scan
+  #   docker compose run --rm loader load [--limit N] [--dry-run] [--type epub|m4b]
+  # Mounts covers read-write (web and resolver only read them): the loader
+  # extracts cover art to /covers/<type>/<id>.jpg as it ingests.
+  loader:
+    build:
+      context: ../python/loader
+      dockerfile: ../../docker/loader/Dockerfile
+    profiles: ["tools"]
+    environment:
+      PGHOST: db
+      PGDATABASE: vibelib
+      PGUSER: vibelib
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      LOADER_COVERS_DIR: /covers
+      OBJECT_STORE_ACCESS_KEY_ID: ${OBJECT_STORE_ACCESS_KEY_ID}
+      OBJECT_STORE_SECRET_ACCESS_KEY: ${OBJECT_STORE_SECRET_ACCESS_KEY}
+      OBJECT_STORE_BUCKET_NAME: ${OBJECT_STORE_BUCKET_NAME}
+      OBJECT_STORE_BUCKET_ENDPOINT: ${OBJECT_STORE_BUCKET_ENDPOINT}
+      OBJECT_STORE_BUCKET_REGION: ${OBJECT_STORE_BUCKET_REGION}
+    volumes:
+      - ../../data/covers:/covers
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # On-demand tool, not a long-running service:
+  #   docker compose run --rm resolver resolve [--limit N] [--dry-run] [--asset epub:123]
+  #   docker compose run --rm resolver review list
+  resolver:
+    build:
+      context: ../python/resolver
+      dockerfile: ../../docker/resolver/Dockerfile
+    profiles: ["tools"]
+    environment:
+      PGHOST: db
+      PGDATABASE: vibelib
+      PGUSER: vibelib
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      RESOLVER_MODEL: ${RESOLVER_MODEL:-claude-sonnet-5}
+      RESOLVER_COVERS_DIR: /covers
+    volumes:
+      - ../../data/covers:/covers:ro
+    depends_on:
+      db:
+        condition: service_healthy

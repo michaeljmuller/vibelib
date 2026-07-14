@@ -1,0 +1,11 @@
+This is a hosted library, it provides a web-based user interface to access ebooks and audiobooks that are stored in an S3 bucket.
+
+The assets are accessed through a web-based API that can support a mobile application.
+
+Build and deployment are both containerized; nothing is installed directly on the host other than Docker.
+
+The build/development environment is a Apple Silicon Mac with Docker Desktop.  The deployment environment is a linux host running Podman.
+The deployment environment is currently Intel-based, but might be ARM-based in the future.  
+
+The docker containers will be re-built on the deployment host, so the project needs to build cleanly in both environments, but we don't
+need to create one executable that runs in both environments.

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vibelib</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <a class="brand" href="#">vibelib</a>
+    <input id="search" type="search" placeholder="Search title, author, series&hellip;" autocomplete="off">
+    <div class="filters">
+      <select id="series"><option value="">All series</option></select>
+      <select id="author"><option value="">All authors</option></select>
+      <select id="language"><option value="">All languages</option></select>
+      <select id="format">
+        <option value="">Any format</option>
+        <option value="epub">Ebook</option>
+        <option value="m4b">Audiobook</option>
+      </select>
+      <select id="sort">
+        <option value="title">A&ndash;Z</option>
+        <option value="date">Newest</option>
+        <option value="acquired">Recently acquired</option>
+        <option value="series">Series order</option>
+      </select>
+    </div>
+  </header>
+
+  <main>
+    <p id="count" class="count"></p>
+    <div id="grid" class="grid"></div>
+    <div id="sentinel"></div>
+    <p id="empty" class="empty" hidden>Nothing matches.</p>
+  </main>
+
+  <div id="detail" class="detail" hidden>
+    <div class="detail-backdrop"></div>
+    <article class="detail-card" role="dialog" aria-modal="true"></article>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

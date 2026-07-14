@@ -1,0 +1,28 @@
+At first glance, it may seem simple to make a library of e-books and audiobooks, but it turns out there are a number of challenges.
+
+Some of these challenges:
+ - author names are inconsistent, but they're the same person (or they're consistent but they're NOT the same person)
+   - pseudonums (Stephen King / Richard Bachman)
+   - middle names, initials (Ian Banks, Ian M. Banks)
+   - punctuation, spacing (JRR Tolkein / J. R. R. Tolkein, J.R.R. Tolkein)
+   - one-to-many (James SA Corey -> Daniel Abraham AND Ty Franck)
+   - many-to-one (Carolyn Keene, author of Nancy Drew books -> Mildred Wirt Benson OR Harriet Stratemeyer Adams)
+ - some authors narrate their own books
+ - some narrators write books
+ - given a binary M4B file with minimal metadata, how do we deterine the author, narrator, publication date, etc.?
+ - how do we figure out the acquisition date?  (I like to see the books that are newest TO ME first)
+ - how do represent a book's position in a series?  Some books have novellas that come "in between" books in the series, like Edgedancer in the Stormligh Archives.
+ - there may be two authors with the same name (but we want to treat them as different people)
+ - there may be two books with the same title (but we want to treat them as different books)
+ - how do we recognize two instances of the same book?
+   - e-book / audiobook
+   - epub / azw
+   - duplicates
+   - second edition
+ - how do we determine that a book is a member of a series?
+ - do we want to be able to capture alternate ordering of a series (reading order)?
+ - publication dates shown by Amazon are often for the edition, but what i'm interested is when the book was originally written
+   - there may be some cases where the date of the revision is more important than the original publication date -- a textbook, for example
+ - titles often contain a lot of search engine optimnization cruft.  instead of showing the title "Combat", the title often appears as something like "The Warships Universe: Combat, a military sci-fi adventure Book 12"
+ - how to represent omnibus editions; collections of multiple books in one volume/epub?
+ 

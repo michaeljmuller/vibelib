@@ -1,0 +1,24 @@
+The database should keep extracted metadata separate from data that is synthesized, downloaded, or manually entered.
+
+For example, an ebook might say the author is James SA Corey.  Another ebook may have James S. A. Corey.  I will maintain that
+inconsistency on those ebooks' metadata.  A separate table of authors will have a normalized representation of that spelling.
+
+I will maintain an "is pseudonym for" table; this may be a one-to-one relationship (Richard Bachman -> Stephen King) or a
+one-to-many relationship (James SA Corey --> Daniel Abraham, James SA Corey --> Ty Franck).  This allows me to indicate that
+James SA Corey is a pseudonym for two people.
+
+NOTE: This modeling FAILS to capture "house novel" situation, when multiple books in a series are written by different authors
+under the same pseudonym, as with the Nancy Drew and Hardy Boys books (which are written by several different people under the
+same name).  In order to capture that, I'd need some sort of way to capture/represent that author A is a
+pesudonuym for B *or* C, as well as a way to capture/represent that author X is a pseudonym for Y *and* Z.  Plus I'd need an
+option "actually written by" relationship from book to author to capture the actual author of the book.  I choose to ignore
+this complexity for now.
+
+I will also have an abstract representation of a book.  I will recognize that "We are Legion.epub" and "We are Legion (We
+are Bob).m4b" are the same book in different formats.
+
+I will have an abstract representation of series of books.  The books will have an OPTIONAL series number.  The series number
+will be represented as an integer (whole number, no decimal).  Interstitial books (like Edgedancer in the Stormlight archives)
+can have no series number and their position can be inferred based on publication date, if desired.  Or they can be left off
+the series, and just considered books in the same "universe".  I am not going to try to represent universes.
+

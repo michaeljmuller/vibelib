@@ -1,0 +1,35 @@
+# secrets — src/docker/.env holds live API keys and passwords
+src/docker/.env
+.env
+
+# actual books and library data — never commit
+*.epub
+*.m4b
+data/
+audit.txt
+old-library-mysql-backup.sql
+not-as-old-library-backup.sql
+
+# components held back from the initial checkin
+# (loader = ingest, resolver = validation/review; a web upload+review
+# feature will replace their entry points before these are committed)
+src/python/loader/
+src/python/resolver/
+src/docker/loader/
+src/docker/resolver/
+util/loader.sh
+util/resolver.sh
+util/audit.sh
+
+# local tool state
+.claude/settings.local.json
+.DS_Store
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.pytest_cache/
+build/
+dist/
