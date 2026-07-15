@@ -19,4 +19,5 @@ to clean up:
  - series membership
   - dup series #
   - holes
-
+ - missing audiobooks (archmage's ire, for example)
+ - mark series that are complete
