@@ -6,9 +6,6 @@ src/docker/.env
 *.epub
 *.m4b
 data/
-audit.txt
-old-library-mysql-backup.sql
-not-as-old-library-backup.sql
 
 # The loader (ingest), resolver (book/people/series resolution, audit, review) and
 # its acquisition-date matcher were CLI tools that never lived on this branch. They
