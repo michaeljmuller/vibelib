@@ -25,37 +25,37 @@ section "1. NEAR-DUPLICATE SERIES NAMES  (likely the same series entered twice)"
 echo "   Merge the real ones FIRST — they manufacture false holes/singletons below."
 echo "   Not every pair is a dup (Children of Time / Titan are different books)."
 psql <<'SQL'
-SELECT a.name AS name_a, b.name AS name_b,
+SELECT a.id AS id_a, a.name AS name_a, b.id AS id_b, b.name AS name_b,
        round(similarity(a.name, b.name)::numeric, 2) AS sim
 FROM series a JOIN series b ON a.id < b.id
 WHERE similarity(a.name, b.name) > :'t'::real
-ORDER BY sim DESC;
+ORDER BY a.name, b.name;
 SQL
 
 section "2. DUPLICATE BOOK ROWS  (same title, same series — a genuine dup row)"
 psql <<'SQL'
-SELECT sr.name AS series, b.title, count(*) AS rows,
+SELECT sr.id AS series_id, sr.name AS series, b.title, count(*) AS rows,
        string_agg(b.id::text, ', ' ORDER BY b.id) AS book_ids
 FROM books b JOIN series sr ON sr.id = b.series_id
-GROUP BY sr.name, lower(b.title), b.title
+GROUP BY sr.id, sr.name, lower(b.title), b.title
 HAVING count(*) > 1
 ORDER BY sr.name, b.title;
 SQL
 
 section "3. POSITION COLLISIONS  (different books claiming one slot — pick an order)"
 psql <<'SQL'
-SELECT sr.name AS series, b.series_position AS pos, count(*) AS books,
-       string_agg(b.title, ' | ' ORDER BY b.title) AS titles
+SELECT sr.id AS series_id, sr.name AS series, b.series_position AS pos, count(*) AS books,
+       string_agg(b.id || '=' || b.title, ' | ' ORDER BY b.title) AS book_id_and_title
 FROM books b JOIN series sr ON sr.id = b.series_id
 WHERE b.series_position IS NOT NULL
-GROUP BY sr.name, b.series_position
+GROUP BY sr.id, sr.name, b.series_position
 HAVING count(*) > 1
 ORDER BY count(*) DESC, sr.name;
 SQL
 
 section "4. CURATED POSITION ≠ THE EPUB'S OWN POSITION  (one of them is wrong)"
 psql <<'SQL'
-SELECT sr.name AS series, b.title,
+SELECT b.id AS book_id, sr.name AS series, b.title,
        b.series_position AS curated, e.series_position AS epub_says
 FROM books b
 JOIN series sr ON sr.id = b.series_id
@@ -78,7 +78,7 @@ WITH present AS (
     WHERE b.series_position IS NOT NULL AND b.series_position > 0
     GROUP BY b.series_id, sr.name
 )
-SELECT name, have,
+SELECT series_id, name, have,
        ARRAY(SELECT generate_series(lo, hi)
              EXCEPT SELECT unnest(have) ORDER BY 1) AS missing
 FROM present
@@ -93,7 +93,8 @@ psql <<'SQL'
 WITH counts AS (
     SELECT series_id, count(*) AS n FROM books WHERE series_id IS NOT NULL GROUP BY series_id
 )
-SELECT one.name AS singleton, many.name AS bigger_series,
+SELECT one.id AS singleton_id, one.name AS singleton,
+       many.id AS bigger_id, many.name AS bigger_series,
        mc.n AS bigger_has,
        round(similarity(one.name, many.name)::numeric, 2) AS sim
 FROM counts oc
@@ -106,7 +107,7 @@ SQL
 
 section "7. UNUSUAL POSITIONS  (zero or negative — confirm it's an intentional prequel)"
 psql <<'SQL'
-SELECT sr.name AS series, b.title, b.series_position AS pos
+SELECT b.id AS book_id, sr.name AS series, b.title, b.series_position AS pos
 FROM books b JOIN series sr ON sr.id = b.series_id
 WHERE b.series_position <= 0
 ORDER BY b.series_position, sr.name;
@@ -114,7 +115,7 @@ SQL
 
 section "8. DROPPED INTERSTITIALS  (epub had a .5 position; the integer column lost it)"
 psql <<'SQL'
-SELECT sr.name AS series, b.title, e.series_position AS epub_says
+SELECT b.id AS book_id, sr.name AS series, b.title, e.series_position AS epub_says
 FROM books b
 JOIN series sr ON sr.id = b.series_id
 JOIN book_epubs be ON be.book_id = b.id
@@ -127,13 +128,13 @@ SQL
 section "9. MIXED AUTHORSHIP  (3+ authors in a series — usually co-authors, sometimes a mis-link)"
 echo "   Also surfaces un-split author strings ('X; Y' stored as one person)."
 psql <<'SQL'
-SELECT sr.name AS series, count(DISTINCT ba.author_id) AS authors,
-       string_agg(DISTINCT p.name, ', ' ORDER BY p.name) AS names
+SELECT sr.id AS series_id, sr.name AS series, count(DISTINCT ba.author_id) AS authors,
+       string_agg(DISTINCT ba.author_id || '=' || p.name, ', ' ORDER BY ba.author_id || '=' || p.name) AS author_id_and_name
 FROM series sr
 JOIN books b ON b.series_id = sr.id
 JOIN book_authors ba ON ba.book_id = b.id
 JOIN people p ON p.id = ba.author_id
-GROUP BY sr.name
+GROUP BY sr.id, sr.name
 HAVING count(DISTINCT ba.author_id) >= 3
 ORDER BY count(DISTINCT ba.author_id) DESC, sr.name;
 SQL
