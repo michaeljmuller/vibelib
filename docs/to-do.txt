@@ -1,21 +1,26 @@
 new features:
  - login
  - tags
- - rating?
+ - rating (and sort by rating)
  - user administration
  - user preferences (default sort order)
  - default sort by acquisition date
  - clean up the language filter
  - set language filter to default to english
  - better author selecter?
+ - click on authors to get books by that author
 
 to clean up:
  - pub dates
   - missing 
   - jan 1
- - acquisition dates
-  - pull from old lib
-  - pull from amazon?
+ - acquisition dates (done)
+  - pulled from the old lib, then corrected from the amazon order export
+  - every epub and m4b now has one
+  - 7 audiobooks came from outside amazon (sanderson kickstarter,
+    doctorow's store) and keep their old-library date
+  - to redo this from a future export, the matcher is in the tag
+    cli-tooling-2026-07-21 (resolver/acquisitions.py)
  - series membership
   - dup series #
   - holes

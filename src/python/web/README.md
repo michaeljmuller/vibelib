@@ -5,8 +5,8 @@ curated catalog (`books`, `people`, `series`) plus a static frontend that
 consumes it. The same API is what a mobile client would talk to.
 
 Book files stay in S3 and are handed out as short-lived presigned URLs, so the
-container never proxies file bytes. Cover images come off the extracted-cover
-tree the resolver also reads (`data/covers/{epub,m4b}/{asset_id}.jpg`), mounted
+container never proxies file bytes. Cover images come off the tree the ingestion
+tooling extracts them into (`data/covers/{epub,m4b}/{asset_id}.jpg`), mounted
 read-only — no S3 round trip to draw the grid.
 
 There is no authentication; the service assumes it sits on a private host.

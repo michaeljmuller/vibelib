@@ -1,4 +1,4 @@
-"""Cover images, served off the extracted-cover tree the resolver also reads:
+"""Cover images, served off the tree the ingestion tooling extracts them into:
 {WEB_COVERS_DIR}/{epub,m4b}/{asset_id}.{jpg,jpeg,png}"""
 
 import os

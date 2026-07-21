@@ -96,55 +96,6 @@ services:
       timeout: 5s
       retries: 60
 
-  # On-demand tool, not a long-running service:
-  #   docker compose run --rm loader scan
-  #   docker compose run --rm loader load [--limit N] [--dry-run] [--type epub|m4b]
-  # Mounts covers read-write (web and resolver only read them): the loader
-  # extracts cover art to /covers/<type>/<id>.jpg as it ingests.
-  loader:
-    build:
-      context: ../python/loader
-      dockerfile: ../../docker/loader/Dockerfile
-    profiles: ["tools"]
-    environment:
-      PGHOST: db
-      PGDATABASE: vibelib
-      PGUSER: vibelib
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-      LOADER_COVERS_DIR: /covers
-      OBJECT_STORE_ACCESS_KEY_ID: ${OBJECT_STORE_ACCESS_KEY_ID}
-      OBJECT_STORE_SECRET_ACCESS_KEY: ${OBJECT_STORE_SECRET_ACCESS_KEY}
-      OBJECT_STORE_BUCKET_NAME: ${OBJECT_STORE_BUCKET_NAME}
-      OBJECT_STORE_BUCKET_ENDPOINT: ${OBJECT_STORE_BUCKET_ENDPOINT}
-      OBJECT_STORE_BUCKET_REGION: ${OBJECT_STORE_BUCKET_REGION}
-    volumes:
-      - ../../data/covers:/covers
-    depends_on:
-      db:
-        condition: service_healthy
-
-  # On-demand tool, not a long-running service:
-  #   docker compose run --rm resolver resolve [--limit N] [--dry-run] [--asset epub:123]
-  #   docker compose run --rm resolver review list
-  resolver:
-    build:
-      context: ../python/resolver
-      dockerfile: ../../docker/resolver/Dockerfile
-    profiles: ["tools"]
-    environment:
-      PGHOST: db
-      PGDATABASE: vibelib
-      PGUSER: vibelib
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      RESOLVER_MODEL: ${RESOLVER_MODEL:-claude-sonnet-5}
-      RESOLVER_COVERS_DIR: /covers
-    volumes:
-      - ../../data/covers:/covers:ro
-    depends_on:
-      db:
-        condition: service_healthy
-
 volumes:
   # The library's curated metadata. The only copy that matters is the one
   # util/dump.sh writes -- see the note on the db service above.

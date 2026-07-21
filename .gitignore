@@ -10,16 +10,15 @@ audit.txt
 old-library-mysql-backup.sql
 not-as-old-library-backup.sql
 
-# components held back from the initial checkin
-# (loader = ingest, resolver = validation/review; a web upload+review
-# feature will replace their entry points before these are committed)
-src/python/loader/
-src/python/resolver/
-src/docker/loader/
-src/docker/resolver/
-util/loader.sh
-util/resolver.sh
-util/audit.sh
+# The loader (ingest), resolver (book/people/series resolution, audit, review) and
+# its acquisition-date matcher were CLI tools that never lived on this branch. They
+# are gone from the tree now; the tag cli-tooling-2026-07-21 holds the last version
+# of all three, to be drawn on when that work is rebuilt as an upload+review feature
+# on the site:
+#
+#     git checkout cli-tooling-2026-07-21 -- src/python/loader
+#
+# Nothing to ignore here any more -- that is the point.
 
 # local tool state
 .claude/settings.local.json
