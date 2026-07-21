@@ -41,7 +41,7 @@ Then fix the migration, commit, pull, and bring it up again. The failed one left
 nothing behind, so there is no partial state to clean up first. If you need to get
 back to where you were in a hurry, that is what step 2 is for:
 
-    util/dump.sh restore ~/vibelib-<date>.dump
+    util/dump.sh restore data/backups/vibelib-<timestamp>.dump
 
 Migrations are mounted into the container from src/sql, not baked into the image,
 so a schema-only change needs no rebuild -- but --build in step 5 is harmless and
