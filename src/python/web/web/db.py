@@ -115,10 +115,11 @@ def list_books(
     offset: int = 0,
 ) -> dict[str, Any]:
     where, params = _filters(q, author_id, series_id, language, fmt)
-    # Browsing a single series, reading order is the useful order.
+    # Newest first, because the usual question is "what's turned up lately?" --
+    # except when browsing a single series, where reading order is the useful order.
     if sort is None:
-        sort = "series" if series_id else "title"
-    order = SORTS.get(sort, SORTS["title"])
+        sort = "series" if series_id else "acquired"
+    order = SORTS.get(sort, SORTS["acquired"])
 
     with pool.connection() as conn:
         total = conn.execute(

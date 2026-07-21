@@ -337,7 +337,7 @@ document.querySelector('.brand').onclick = (e) => {
   e.preventDefault();
   els.search.value = '';
   for (const id of ['series', 'author', 'language', 'format']) els[id].value = '';
-  els.sort.value = 'title';
+  els.sort.value = 'acquired';
   reload();
 };
 

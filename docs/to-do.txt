@@ -4,7 +4,7 @@ new features:
  - rating (and sort by rating)
  - user administration
  - user preferences (default sort order)
- - default sort by acquisition date
+ - default sort by acquisition date (done)
  - clean up the language filter
  - set language filter to default to english
  - better author selecter?
