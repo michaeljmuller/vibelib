@@ -16,6 +16,8 @@ from pydantic import BaseModel, EmailStr
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, covers, db, migrate, s3
+from .ingest import api as ingest_api
+from .ingest.worker import worker as ingest_worker
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -31,7 +33,12 @@ async def lifespan(app: FastAPI):
     # And do not serve until the schema matches the code that is about to run
     # against it. A failure here is a failure to start, on purpose.
     migrate.run(db.pool)
+    # Ingestion runs on its own thread so that adding a book survives the tab
+    # that started it being closed. Started after the migrations, because its
+    # first act is to read the tables they may just have changed.
+    ingest_worker.start()
     yield
+    ingest_worker.stop()
     db.pool.close()
 
 
@@ -52,6 +59,7 @@ app.add_middleware(
     max_age=30 * 24 * 3600,
 )
 app.include_router(auth.router)
+app.include_router(ingest_api.router)
 
 
 def _with_cover(book: dict[str, Any]) -> dict[str, Any]:
@@ -219,6 +227,11 @@ def login_page():
 @app.get("/admin")
 def admin_page(admin: dict = Depends(auth.require_admin)):
     return FileResponse(STATIC_DIR / "admin.html")
+
+
+@app.get("/ingest")
+def ingest_page(admin: dict = Depends(auth.require_admin)):
+    return FileResponse(STATIC_DIR / "ingest.html")
 
 
 # Public, unavoidably: the login page is made of these. They are the client-side

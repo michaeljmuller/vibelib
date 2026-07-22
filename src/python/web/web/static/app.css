@@ -428,8 +428,168 @@ main { padding: 20px; }
   text-align: left;
 }
 
+/* --- adding books (/ingest) ------------------------------------------- */
+
+.admin.wide { max-width: 1000px; }
+
+.panel { margin-top: 28px; }
+.panel h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.drop {
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 28px;
+  background: var(--surface);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--surface-2); }
+.drop .dim { color: var(--muted); font-size: 13px; }
+
+/* List B rows: a whole row is the button that starts resolving it. */
+.ready {
+  display: block;
+  width: 100%;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.ready:hover:not(:disabled) { border-color: var(--accent); }
+.ready:disabled { opacity: .5; cursor: default; }
+.ready-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+}
+.ready-row .tag { margin-left: auto; }
+.item.open { border-color: var(--accent); }
+
+button.primary, button.ghost {
+  height: 30px;
+  padding: 0 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: #10141c; font-weight: 600; }
+button.primary:hover { filter: brightness(1.08); }
+button.ghost:hover { border-color: var(--accent); }
+button.ghost.danger:hover { color: #e06c75; border-color: #e06c75; }
+.panel h2 button { margin-left: 0; }
+
+.item {
+  margin-bottom: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.item-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+}
+.item-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-head .bar { flex: 0 0 120px; height: 5px; }
+.item-head .pct { color: var(--muted); font-size: 12px; min-width: 34px; text-align: right; }
+.item-error { margin: 0; padding: 0 14px 11px; color: #e06c75; font-size: 13px; }
+
+.stage { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.stage.downloading, .stage.storing, .stage.uploading, .stage.reading { color: var(--accent); }
+.stage.done { color: #98c379; }
+.stage.failed { color: #e06c75; }
+
+.card { padding: 0 14px 14px; border-top: 1px solid var(--line); }
+.card-cols { display: flex; gap: 24px; padding-top: 12px; }
+.card-cols .col { flex: 1; min-width: 0; }
+.card-cols .col h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.col-thumb { flex: 0 0 80px; }
+.col-thumb .thumb { width: 80px; border-radius: 4px; display: block; }
+
+.row { display: flex; gap: 10px; padding: 3px 0; font-size: 13px; }
+.row-label { flex: 0 0 88px; color: var(--muted); }
+.row-value { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.verb {
+  margin-right: 6px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.verb.create { color: #98c379; }
+.verb.link { color: var(--accent); }
+.verb.update { color: #e5c07b; }
+.warn { display: block; margin-top: 2px; color: #e5c07b; font-size: 12px; }
+
+.why { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
+.notes { margin: 4px 0 0; font-size: 13px; }
+
+.card-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.acquired-label { margin-left: auto; color: var(--muted); font-size: 12px; }
+.acquired {
+  margin-left: 8px;
+  height: 30px;
+  padding: 0 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.instruction {
+  width: 100%;
+  height: 34px;
+  margin-top: 10px;
+  padding: 0 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.instruction:focus { outline: none; border-color: var(--accent); }
+
 @media (max-width: 620px) {
   header { padding: 10px 14px; gap: 8px; }
+
+  /* The two review columns stop being a comparison once they are this narrow;
+     stack them so each is readable instead. */
+  .card-cols { flex-direction: column; gap: 14px; }
+  .col-thumb { display: none; }
+  .card-actions { flex-wrap: wrap; }
+  .acquired-label { margin-left: 0; }
 
   /* The filter row already wraps; let the account chip ride along with it rather
      than squeezing the search field. */

@@ -13,6 +13,9 @@ dependencies = [
     "httpx>=0.27",         # what authlib's starlette client makes its token calls with
     "itsdangerous>=2.2",   # signs the session cookie for starlette's SessionMiddleware
     "pydantic[email]>=2",  # EmailStr, so a typo'd invitation is rejected rather than un-redeemable
+    "python-multipart>=0.0.9",  # what FastAPI parses an uploaded file out of
+    "mutagen>=1.47",       # m4b tags and cover art (chapters come from ffprobe)
+    "anthropic>=0.60",     # resolving a new asset to a book -- see web/ingest
 ]
 
 [project.optional-dependencies]
@@ -23,7 +26,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["web"]
+packages = ["web", "web.ingest"]
 
 [tool.setuptools.package-data]
 web = ["static/*"]

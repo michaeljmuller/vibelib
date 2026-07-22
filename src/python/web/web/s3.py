@@ -17,7 +17,7 @@ the bucket root.
 import os
 from dataclasses import dataclass
 from functools import cache
-from typing import Iterator
+from typing import Callable, Iterator
 
 import boto3
 from botocore.config import Config
@@ -118,3 +118,72 @@ def size(s3_key: str) -> int | None:
         return _client().head_object(Bucket=_bucket(), Key=s3_key)["ContentLength"]
     except Exception:
         return None
+
+
+# --- adding to the bucket (see web.ingest) ----------------------------------
+
+
+def exists(s3_key: str) -> bool:
+    """Whether the key is taken. Distinct from size(): this one must tell a
+    genuine 404 from a store it could not reach, because the caller is deciding
+    whether to overwrite somebody's book."""
+    try:
+        _client().head_object(Bucket=_bucket(), Key=s3_key)
+        return True
+    except ClientError as e:
+        if e.response["Error"]["Code"] in ("NoSuchKey", "NoSuchBucket", "404"):
+            return False
+        raise
+
+
+def _fraction_reporter(total: int | None, on_progress) -> Callable[[int], None] | None:
+    """Adapt boto3's Callback -- which is handed a byte count per chunk, not a
+    running total -- to the 0.0-1.0 fraction the UI wants. Returns None when
+    there is nothing to report against, so a missing size costs a progress bar
+    and never the transfer."""
+    if on_progress is None or not total:
+        return None
+    moved = 0
+
+    def report(chunk_bytes: int) -> None:
+        nonlocal moved
+        moved += chunk_bytes
+        on_progress(min(1.0, moved / total))
+
+    return report
+
+
+def upload(path: str, s3_key: str, on_progress=None) -> None:
+    """Put a local file in the bucket. upload_file multiparts anything large on
+    its own, which an audiobook always is."""
+    reporter = _fraction_reporter(os.path.getsize(path), on_progress)
+    _client().upload_file(path, _bucket(), s3_key, Callback=reporter)
+
+
+def download_to(s3_key: str, path: str, on_progress=None) -> None:
+    reporter = _fraction_reporter(size(s3_key), on_progress)
+    try:
+        _client().download_file(_bucket(), s3_key, path, Callback=reporter)
+    except ClientError as e:
+        if e.response["Error"]["Code"] in ("NoSuchKey", "404"):
+            raise NotFound(s3_key) from e
+        raise
+
+
+def list_book_keys() -> dict[str, list[str]]:
+    """Every epub and m4b key in the bucket, by asset type.
+
+    Paginated: the bucket holds thousands of objects and a bare list_objects_v2
+    silently stops at 1000, which would make new files invisible forever.
+    """
+    found: dict[str, list[str]] = {"epub": [], "m4b": []}
+    paginator = _client().get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=_bucket()):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            lower = key.lower()
+            if lower.endswith(".epub"):
+                found["epub"].append(key)
+            elif lower.endswith(".m4b"):
+                found["m4b"].append(key)
+    return found

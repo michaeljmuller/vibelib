@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vibelib &mdash; add books</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/">vibelib</a>
+    <span class="crumb">Add books</span>
+    <div class="account">
+      <a class="signout" href="/admin">Accounts</a>
+      <a class="signout" href="/">Back to library</a>
+    </div>
+  </header>
+
+  <main class="admin wide">
+
+    <!-- List A: files that have no row yet. A work queue. -->
+    <section class="panel">
+      <h2>
+        Coming in
+        <button id="rescan" class="ghost" type="button">Check the bucket</button>
+        <button id="clear" class="ghost" type="button" hidden>Clear finished</button>
+      </h2>
+
+      <label id="drop" class="drop" for="files">
+        <strong>Drop .epub / .m4b files here</strong>
+        <span class="dim">or click to choose</span>
+        <input id="files" type="file" multiple accept=".epub,.m4b" hidden>
+      </label>
+
+      <p id="upload-warning" class="msg" hidden>
+        Uploading &mdash; stay on this page until it finishes. Everything after the
+        upload runs on the server and will carry on without you.
+      </p>
+
+      <p class="dim" id="a-note"></p>
+      <div id="list-a"></div>
+    </section>
+
+    <!-- List B: rows that have no book. Click one to add it. -->
+    <section class="panel">
+      <h2>Ready to add</h2>
+      <p class="dim" id="b-note"></p>
+      <div id="list-b"></div>
+    </section>
+
+    <p id="msg" class="msg" hidden></p>
+  </main>
+
+  <script src="/static/ingest.js"></script>
+</body>
+</html>

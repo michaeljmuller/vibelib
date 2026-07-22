@@ -15,6 +15,7 @@ const els = {
   sort: document.getElementById('sort'),
   whoami: document.getElementById('whoami'),
   guests: document.getElementById('guests'),
+  addBooks: document.getElementById('add-books'),
 };
 
 // `generation` counts reloads. Typing a search fires one per keystroke-pause,
@@ -376,10 +377,11 @@ new IntersectionObserver((entries) => {
 async function loadAccount() {
   const { name, is_admin } = await getJSON('/api/me');
   els.whoami.textContent = name;
-  // Courtesy, not security: /admin and every /api/users route check this
-  // server-side. Hiding the link just keeps it out of the way of people it would
-  // only refuse.
+  // Courtesy, not security: /admin, /ingest and every route behind them check
+  // this server-side. Hiding the links just keeps them out of the way of people
+  // they would only refuse.
   els.guests.hidden = !is_admin;
+  els.addBooks.hidden = !is_admin;
 }
 
 loadAccount();

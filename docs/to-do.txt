@@ -1,5 +1,10 @@
 new features:
  - login
+ - adding books from the web UI (done)
+  - /ingest, admins only. two lists: files with no row, then rows with no book
+  - extraction + resolution are the old loader/resolver, now src/python/web/web/ingest
+  - the extraction queue runs on a worker thread, so it survives leaving the page
+  - nothing is written until you accept; cancel leaves no trace
  - tags
  - rating (and sort by rating)
  - user administration
@@ -9,6 +14,7 @@ new features:
  - set language filter to default to english
  - better author selecter?
  - click on authors to get books by that author
+ - ability to upload new cover
 
 to clean up:
  - pub dates
@@ -26,3 +32,4 @@ to clean up:
   - holes
  - missing audiobooks (archmage's ire, for example)
  - mark series that are complete
+ - missing covers

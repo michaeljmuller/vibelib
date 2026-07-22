@@ -63,8 +63,22 @@ services:
       # Local development only: skip Google and treat every request as this user.
       # The app refuses to start if this is set while OAUTH_BASE_URL is https.
       OAUTH_DEV_USER: ${OAUTH_DEV_USER:-}
+      # Adding a book resolves it against the catalog with one structured Claude
+      # call; see src/python/web/web/ingest. Nothing else in the app needs these,
+      # so an unset key costs the ingest page and nothing more.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      RESOLVER_MODEL: ${RESOLVER_MODEL:-claude-sonnet-5}
+      INGEST_STAGING_DIR: /staging
     volumes:
-      - ../../data/covers:/covers:ro
+      # Read-write: the browse UI reads covers, and the ingest page extracts them
+      # out of newly added epubs and m4bs.
+      - ../../data/covers:/covers
+      # Where a file sits while it is being read. On a bind mount rather than in
+      # the container, because an audiobook runs to a gigabyte and the writable
+      # layer is the wrong place for one -- under rootless podman that lives in
+      # the graph root, where filling the disk takes more than this app down.
+      # Everything in here is disposable; the worker sweeps it at startup.
+      - ../../data/staging:/staging
       # Mounted rather than baked into the image: the build context is
       # src/python/web and cannot reach up to src/sql. Mounting also means a plain
       # `git pull` on the server delivers new migrations -- no rebuild needed for
