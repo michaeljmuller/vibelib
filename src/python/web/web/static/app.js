@@ -17,7 +17,10 @@ const els = {
   guests: document.getElementById('guests'),
 };
 
-const state = { offset: 0, total: 0, loading: false, done: false };
+// `generation` counts reloads. Typing a search fires one per keystroke-pause,
+// and each abandons whatever the last one asked for -- so a request has to be
+// able to tell, when it finally lands, whether anyone still wants its answer.
+const state = { offset: 0, total: 0, loading: false, done: false, generation: 0 };
 
 // --- api --------------------------------------------------------------
 
@@ -149,8 +152,17 @@ function query() {
 async function loadPage() {
   if (state.loading || state.done) return;
   state.loading = true;
+  const generation = state.generation;
 
   const { total, items } = await getJSON(`/api/books?${query()}`);
+
+  // A reload happened while this was in flight. Its results answer a question
+  // nobody is asking any more, and the grid it would append them to has been
+  // emptied and refilled by someone else -- so appending now shows the same
+  // book twice under a count that says one. Drop them, and do not touch
+  // state: the newer load owns it.
+  if (generation !== state.generation) return;
+
   state.total = total;
   state.offset += items.length;
   state.done = state.offset >= total || items.length === 0;
@@ -170,8 +182,12 @@ async function loadPage() {
 }
 
 function reload() {
+  state.generation++;
   state.offset = 0;
   state.done = false;
+  // Deliberately cleared even though a request may still be running: a reload
+  // must be able to start one immediately. What keeps that safe is the
+  // generation check in loadPage, not this flag.
   state.loading = false;
   els.grid.replaceChildren();
   loadPage();
