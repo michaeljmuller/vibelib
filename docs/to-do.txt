@@ -33,3 +33,4 @@ to clean up:
  - missing audiobooks (archmage's ire, for example)
  - mark series that are complete
  - missing covers
+ - get rid of the legacy db service from the docker-compose

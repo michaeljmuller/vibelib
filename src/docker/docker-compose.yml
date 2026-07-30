@@ -3,7 +3,7 @@ name: vibelib
 services:
   db:
     image: postgres:16
-    restart: unless-stopped
+    restart: ${RESTART_POLICY:-unless-stopped}
     environment:
       POSTGRES_DB: vibelib
       POSTGRES_USER: vibelib
@@ -30,7 +30,7 @@ services:
     build:
       context: ../python/web
       dockerfile: ../../docker/web/Dockerfile
-    restart: unless-stopped
+    restart: ${RESTART_POLICY:-unless-stopped}
     # All interfaces, because Caddy runs in its own container and reaches this over
     # the podman gateway address rather than loopback. What keeps the port private
     # is the host firewall: only 22, 80 and 443 are open, so 8000 is reachable from
