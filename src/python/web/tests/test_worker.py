@@ -95,6 +95,18 @@ def test_opening_the_page_drops_finished_jobs_and_keeps_failures(w):
     assert [j["id"] for j in w.jobs()] == [failed.id, running.id]
 
 
+def test_discarding_a_record_lets_the_bucket_check_find_it_again(w):
+    job = w.enqueue_fetch("Wrong.epub")
+    w._set(job, phase=pipeline.DONE)
+    # Claimed, and rightly so while the row it made exists.
+    assert w.enqueue_fetch("Wrong.epub") is None
+
+    w.release("Wrong.epub")  # what /discard does once the row is gone
+
+    # The object is still in the bucket with no row, which is work again.
+    assert w.enqueue_fetch("Wrong.epub") is not None
+
+
 def test_a_failure_survives_a_page_load_still_claimed(w):
     job = w.enqueue_fetch("Broken.m4b")
     w._set(job, phase=pipeline.FAILED, error="not an MP4 file")

@@ -94,6 +94,18 @@ class Worker:
         with self._lock:
             return any(j.phase not in (DONE, FAILED) for j in self._jobs.values())
 
+    def release(self, s3_key: str) -> None:
+        """Un-claim a key: this process has no reason to think it is handled.
+
+        Called when an asset's record is discarded. The object stays in the
+        bucket, so bucket-minus-tables says it is work again -- but a key
+        claimed by the fetch that first read it would keep this process from
+        ever queueing it, and the queue would disagree with the truth it is
+        defined as until a restart.
+        """
+        with self._lock:
+            self._claimed.discard(s3_key)
+
     def forget_done(self) -> None:
         """Drop jobs that finished successfully. Called when the page loads.
 

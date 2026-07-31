@@ -228,11 +228,16 @@ def api_discard(ref: AssetRef):
     with db.pool.connection() as conn:
         if store.is_linked(conn, ref.asset_type, ref.asset_id):
             raise HTTPException(409, "that asset belongs to a book; it is not waiting to be added")
-        if not store.delete_asset(conn, ref.asset_type, ref.asset_id):
+        s3_key = store.delete_asset(conn, ref.asset_type, ref.asset_id)
+        if s3_key is None:
             raise HTTPException(404, "no such asset")
         conn.commit()
     covers.discard(ref.asset_type, ref.asset_id)
-    log.info("discarded the record of %s:%s", ref.asset_type, ref.asset_id)
+    # The object is still there and now has no row, which is the definition of
+    # list A. Without this the worker would go on believing it had dealt with
+    # that key, and the bucket check would find nothing to do until a restart.
+    worker.release(s3_key)
+    log.info("discarded the record of %s:%s (%s)", ref.asset_type, ref.asset_id, s3_key)
 
 
 @router.post("/accept")

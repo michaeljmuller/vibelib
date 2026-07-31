@@ -165,9 +165,12 @@ def is_linked(conn: psycopg.Connection, asset_type: str, asset_id: int) -> bool:
     return row is not None
 
 
-def delete_asset(conn: psycopg.Connection, asset_type: str, asset_id: int) -> bool:
-    """Drop the raw row for an asset that belongs to no book. Returns whether
-    there was one to drop.
+def delete_asset(conn: psycopg.Connection, asset_type: str, asset_id: int) -> str | None:
+    """Drop the raw row for an asset that belongs to no book. Returns the key of
+    the object it was read from, or None if there was no such row.
+
+    The key is what the caller needs: the object outlives the row, so whatever
+    was tracking it has to be told this file is unread again.
 
     The children (authors, chapters, narrators, acquisition) go with it by
     cascade. The bucket object does not: an object is the file itself, and
@@ -185,11 +188,11 @@ def delete_asset(conn: psycopg.Connection, asset_type: str, asset_id: int) -> bo
         f"""DELETE FROM {table}
              WHERE id = %(id)s
                AND NOT EXISTS (SELECT 1 FROM {join} WHERE {fk} = %(id)s)
-         RETURNING id""",
+         RETURNING s3_key""",
         {"id": asset_id},
     ).fetchone()
     if row is None:
-        return False
+        return None
     # Nothing references resolutions by key, so an asset that is gone leaves a
     # log row about an id that no longer exists. Only an asset that was added
     # and later unlinked has one at all.
@@ -197,7 +200,7 @@ def delete_asset(conn: psycopg.Connection, asset_type: str, asset_id: int) -> bo
         "DELETE FROM resolutions WHERE asset_type = %s AND asset_id = %s",
         (asset_type, asset_id),
     )
-    return True
+    return row["s3_key"]
 
 
 # --- raw metadata, as the resolver sees it -----------------------------------
