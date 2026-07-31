@@ -3,7 +3,8 @@
 //   List A  files with no row yet — a work queue. The server owns everything in
 //           it except the browser→server upload, so this page is mostly a view
 //           of state it polls rather than state it holds.
-//   List B  rows with no book — click one to work out where it belongs.
+//   List B  rows with no book — Add works out where one belongs, Remove forgets
+//           it. Both are buttons; the row itself does nothing.
 //
 // The only thing this page really owns is an open proposal. Nothing is written
 // until Accept, so cancelling is dropping a variable and reloading is the same
@@ -193,12 +194,18 @@ function readyNode(entry) {
     return el('div', { className: 'item open' }, row, open.card ? cardNode(open) : busyNode(open));
   }
 
-  const choose = el('button', { className: 'ready', type: 'button' }, row);
-  choose.onclick = () => resolveAsset(entry);
-  choose.disabled = open != null;
+  // Named buttons rather than a clickable row: the two things you can do to a
+  // file are opposite, and one of them costs a model call, which is not
+  // something to start by clicking a title.
+  const add = el('button', {
+    className: 'ghost', type: 'button', textContent: 'Add',
+    title: 'Work out where this belongs',
+  });
+  add.onclick = () => resolveAsset(entry);
+  add.disabled = open != null;
 
   const remove = el('button', {
-    className: 'ghost danger remove', type: 'button', textContent: 'Remove',
+    className: 'ghost danger', type: 'button', textContent: 'Remove',
     title: 'Forget this file — deletes the record, not the file',
   });
   remove.onclick = () => {
@@ -208,7 +215,7 @@ function readyNode(entry) {
   remove.disabled = open != null;
 
   const item = el('div', { className: 'item ready-item' },
-    el('div', { className: 'ready-line' }, choose, remove));
+    el('div', { className: 'ready-line' }, row, add, remove));
   if (discarding === key) item.append(confirmNode(entry));
   return item;
 }

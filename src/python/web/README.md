@@ -65,7 +65,7 @@ few seconds with nothing to report:
 
     queued · uploading · downloading · storing · reading · done · failed
 
-**List B — rows with no book.** Click one and `web/ingest/resolve.py` proposes
+**List B — rows with no book.** Press Add and `web/ingest/resolve.py` proposes
 where it belongs: free and deterministic when the normalized title and author
 set match an existing book (`candidates.py`), otherwise one structured Claude
 call (`llm.py`). The card shows the file's own metadata beside the proposal, and
