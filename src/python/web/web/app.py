@@ -214,26 +214,49 @@ def api_remove_user(user_id: int, admin: dict = Depends(auth.require_admin)):
     db.remove_user(user_id)
 
 
+# The app's own files carry no version in their names, so a browser left to its
+# own devices applies heuristic freshness -- with no Cache-Control and only a
+# Last-Modified to go on, it may serve a cached copy for days without asking.
+# What that looks like is a deploy that did nothing: new server, old page, and
+# the two disagreeing about what the app can do. These are a few kilobytes with
+# an ETag, so revalidating every time costs a 304 and removes the whole class of
+# problem. Covers are the opposite case and keep their week (see /covers).
+NO_CACHE = {"Cache-Control": "no-cache"}
+
+
+def page(name: str) -> FileResponse:
+    return FileResponse(STATIC_DIR / name, headers=NO_CACHE)
+
+
 @app.get("/")
 def index():
-    return FileResponse(STATIC_DIR / "index.html")
+    return page("index.html")
 
 
 @app.get("/login")
 def login_page():
-    return FileResponse(STATIC_DIR / "login.html")
+    return page("login.html")
 
 
 @app.get("/admin")
 def admin_page(admin: dict = Depends(auth.require_admin)):
-    return FileResponse(STATIC_DIR / "admin.html")
+    return page("admin.html")
 
 
 @app.get("/ingest")
 def ingest_page(admin: dict = Depends(auth.require_admin)):
-    return FileResponse(STATIC_DIR / "ingest.html")
+    return page("ingest.html")
+
+
+class AppFiles(StaticFiles):
+    """StaticFiles that asks before reusing what it has -- see NO_CACHE."""
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 # Public, unavoidably: the login page is made of these. They are the client-side
 # half of an API that is itself gated, so they give away nothing but layout.
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/static", AppFiles(directory=STATIC_DIR), name="static")
