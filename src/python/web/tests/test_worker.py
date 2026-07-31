@@ -81,3 +81,26 @@ def test_clearing_keeps_a_successful_fetch_claimed(w):
     w.forget_finished()
     # It has a row now; re-fetching would only rediscover that.
     assert w.enqueue_fetch("Fine.epub") is None
+
+
+def test_opening_the_page_drops_finished_jobs_and_keeps_failures(w):
+    done = w.enqueue_fetch("Fine.epub")
+    failed = w.enqueue_fetch("Broken.m4b")
+    running = w.enqueue_stage("/staging/x.epub", "x.epub", "epub")
+    w._set(done, phase=pipeline.DONE)
+    w._set(failed, phase=pipeline.FAILED, error="not an MP4 file")
+
+    w.forget_done()
+
+    assert [j["id"] for j in w.jobs()] == [failed.id, running.id]
+
+
+def test_a_failure_survives_a_page_load_still_claimed(w):
+    job = w.enqueue_fetch("Broken.m4b")
+    w._set(job, phase=pipeline.FAILED, error="not an MP4 file")
+
+    w.forget_done()
+
+    # The whole point of the speed bump: opening a page must not re-download a
+    # file that has already proved unreadable.
+    assert w.enqueue_fetch("Broken.m4b") is None

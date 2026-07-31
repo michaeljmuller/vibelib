@@ -94,6 +94,21 @@ class Worker:
         with self._lock:
             return any(j.phase not in (DONE, FAILED) for j in self._jobs.values())
 
+    def forget_done(self) -> None:
+        """Drop jobs that finished successfully. Called when the page loads.
+
+        Everything a done job has to say is "this file is now a row", and the
+        row is in list B directly below it -- so on a page that did not watch it
+        happen, it is one line of history in the way of the work. Failures stay:
+        they carry the only account of what went wrong, and, unlike here, having
+        them read is the point. Their keys stay claimed too, so nothing is
+        re-fetched by the act of opening a page.
+        """
+        with self._lock:
+            for job_id, job in list(self._jobs.items()):
+                if job.phase == DONE:
+                    del self._jobs[job_id]
+
     def forget_finished(self) -> None:
         """Drop done/failed jobs from the display. The rows a finished job made
         are in list B, and its failures have been read by now or never will be.

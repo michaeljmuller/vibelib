@@ -117,6 +117,14 @@ def api_clear_finished():
     worker.forget_finished()
 
 
+@router.post("/forget-done", status_code=204)
+def api_forget_done():
+    """What the page calls as it opens: jobs that succeeded before it existed
+    are history, and the rows they made are in list B. Failures are left for
+    Clear finished, which is also the only thing that lets one be retried."""
+    worker.forget_done()
+
+
 @router.post("/upload", status_code=202)
 def api_upload(file: UploadFile = File(...)):
     """Take the bytes, put them in staging, hand the rest to the worker.

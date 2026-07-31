@@ -95,6 +95,7 @@ supply, and one `resolutions` row records what was applied.
 | `POST /scan` | queue every bucket object with no row |
 | `POST /upload` | take the bytes into staging and hand them to the worker |
 | `POST /clear-finished` | drop finished jobs from the display; also releases a failed fetch for another try |
+| `POST /forget-done` | called as the page opens: drop jobs that succeeded before it existed, keep failures |
 | `POST /resolve` | propose a mapping. Writes nothing |
 | `POST /revise` | a plain-language correction, re-proposed. Writes nothing |
 | `POST /accept` | apply it. The only route that writes to the catalog |

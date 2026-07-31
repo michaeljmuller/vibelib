@@ -484,5 +484,16 @@ window.addEventListener('beforeunload', (e) => {
   if ([...uploads.values()].some((u) => u.phase === 'uploading')) e.preventDefault();
 });
 
-rescan();
-poll();
+// Opening the page draws a line under whatever the worker finished while nobody
+// was here: those files are rows now, and rows are list B's business. Done
+// before the first poll, or the page paints the very thing it is about to drop.
+// Failures survive it -- see forget_done() -- and are cleared by hand.
+(async () => {
+  try {
+    await post('/api/admin/ingest/forget-done');
+  } catch {
+    /* a stale job on the page is not a reason to open it empty */
+  }
+  poll();    // what is here now
+  rescan();  // then look in the bucket, which takes seconds
+})();
