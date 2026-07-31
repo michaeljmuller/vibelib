@@ -460,18 +460,26 @@ main { padding: 20px; }
 .drop:hover, .drop.over { border-color: var(--accent); background: var(--surface-2); }
 .drop .dim { color: var(--muted); font-size: 13px; }
 
-/* List B rows: a whole row is the button that starts resolving it. */
+/* List B rows: the row is the button that starts resolving it, with Remove
+   sitting alongside it inside the same bordered item. */
+.ready-line { display: flex; align-items: stretch; }
 .ready {
-  display: block;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 0;
+  background: none;
+  border: none;
   text-align: left;
   font: inherit;
   color: inherit;
   cursor: pointer;
 }
-.ready:hover:not(:disabled) { border-color: var(--accent); }
+/* Hovering the row highlights it; hovering Remove does not, because Remove is
+   not a way into the row. */
+.ready-item:has(.ready:hover:not(:disabled)) { border-color: var(--accent); }
 .ready:disabled { opacity: .5; cursor: default; }
+.ready-line .remove { align-self: center; margin-right: 12px; }
+.ready-line .remove:disabled { opacity: .5; cursor: default; }
 .ready-row {
   display: flex;
   align-items: center;

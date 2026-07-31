@@ -26,6 +26,24 @@ def media_type(path: Path) -> str:
     return "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
 
 
+def discard(asset_type: str, asset_id: int) -> None:
+    """Remove the extracted cover for an asset whose row is being deleted.
+
+    Derived data, so losing it costs nothing -- reading the file again puts it
+    back. Leaving it behind, on the other hand, means a later asset that happens
+    to reuse the id would wear the wrong picture."""
+    covers_dir = os.environ.get("WEB_COVERS_DIR")
+    if not covers_dir or asset_type not in ("epub", "m4b"):
+        return
+    # Every extension, not just the one find_cover would have picked: a file
+    # ingested before save() settled on .jpg can be sitting under another one.
+    for ext in ("jpg", "jpeg", "png"):
+        try:
+            (Path(covers_dir) / asset_type / f"{asset_id}.{ext}").unlink(missing_ok=True)
+        except OSError as exc:  # noqa: BLE001 — a stray file is not worth a 500
+            log.warning("could not remove cover for %s %s: %s", asset_type, asset_id, exc)
+
+
 def save(asset_type: str, asset_id: int, data: bytes | None) -> bool:
     """Write an extracted cover. Always .jpg: whatever the source format, this
     is what find_cover looks for first and what the grid draws. Failure here is

@@ -5,8 +5,8 @@ Two lists, and the routes divide along them:
   List A  files with no row yet -- /state, /scan, /upload. Slow work, done by
           the worker, so closing the page interrupts nothing that was running
           on this side of the wire.
-  List B  rows with no book -- /resolve, /revise, /accept. Fast work, done in
-          the request, because someone is sitting there waiting for it.
+  List B  rows with no book -- /resolve, /revise, /accept, /discard. Fast work,
+          done in the request, because someone is sitting there waiting for it.
 
 Only /accept writes to the catalog. /resolve and /revise compute a proposal and
 hand it back; the browser holds it until it is accepted or abandoned. That is
@@ -197,6 +197,27 @@ def api_revise(body: Revision):
             conn, body.asset_type, body.asset_id,
             proposal, adj.confidence, f"{adj.notes} [edited: {instruction}]",
         )
+
+
+@router.post("/discard", status_code=204)
+def api_discard(ref: AssetRef):
+    """Forget a file we read: delete its raw row, leave the bucket alone.
+
+    For the file that should not have been read in the first place -- the wrong
+    upload, the stray object -- which otherwise sits in list B forever, since
+    the list is a query and there is nothing to mark. Deleting the object is a
+    back-end job on purpose: the row is something this app made and can make
+    again, the object is the only copy of the file.
+    """
+    _check(ref)
+    with db.pool.connection() as conn:
+        if store.is_linked(conn, ref.asset_type, ref.asset_id):
+            raise HTTPException(409, "that asset belongs to a book; it is not waiting to be added")
+        if not store.delete_asset(conn, ref.asset_type, ref.asset_id):
+            raise HTTPException(404, "no such asset")
+        conn.commit()
+    covers.discard(ref.asset_type, ref.asset_id)
+    log.info("discarded the record of %s:%s", ref.asset_type, ref.asset_id)
 
 
 @router.post("/accept")

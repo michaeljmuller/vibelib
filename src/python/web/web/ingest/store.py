@@ -165,6 +165,41 @@ def is_linked(conn: psycopg.Connection, asset_type: str, asset_id: int) -> bool:
     return row is not None
 
 
+def delete_asset(conn: psycopg.Connection, asset_type: str, asset_id: int) -> bool:
+    """Drop the raw row for an asset that belongs to no book. Returns whether
+    there was one to drop.
+
+    The children (authors, chapters, narrators, acquisition) go with it by
+    cascade. The bucket object does not: an object is the file itself, and
+    nothing here deletes one. What this undoes is the *reading* of a file, so
+    the next scan of the bucket will read it again -- which is right, and is
+    what makes discarding a mistake cheap in both directions.
+
+    A linked asset is refused in the WHERE clause rather than trusted to a check
+    above, because the cascade would otherwise take the book_epubs/book_m4bs row
+    with it and quietly strip a file off a book in the library.
+    """
+    table = TABLES[asset_type]
+    join, fk = LINKS[asset_type]
+    row = conn.execute(
+        f"""DELETE FROM {table}
+             WHERE id = %(id)s
+               AND NOT EXISTS (SELECT 1 FROM {join} WHERE {fk} = %(id)s)
+         RETURNING id""",
+        {"id": asset_id},
+    ).fetchone()
+    if row is None:
+        return False
+    # Nothing references resolutions by key, so an asset that is gone leaves a
+    # log row about an id that no longer exists. Only an asset that was added
+    # and later unlinked has one at all.
+    conn.execute(
+        "DELETE FROM resolutions WHERE asset_type = %s AND asset_id = %s",
+        (asset_type, asset_id),
+    )
+    return True
+
+
 # --- raw metadata, as the resolver sees it -----------------------------------
 
 

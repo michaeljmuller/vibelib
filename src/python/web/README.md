@@ -71,6 +71,16 @@ set match an existing book (`candidates.py`), otherwise one structured Claude
 call (`llm.py`). The card shows the file's own metadata beside the proposal, and
 you Accept, Request changes, or Cancel.
 
+**Remove** is the other way out of list B, for a file that should never have
+been read — the wrong upload, a stray object. It deletes the raw row (children
+by cascade, plus the extracted cover and any `resolutions` row) and nothing
+else: the bucket object stays, because the row is something this app made and
+can make again while the object is the file itself. Deleting an object is a
+back-end job, on purpose. The consequence is stated on the confirmation — a
+removed row whose object is still in the bucket comes back on the next scan —
+and a linked asset is refused in the `DELETE`'s own `WHERE` clause, so the
+cascade can never strip a file off a book in the library.
+
 **Nothing is written until Accept.** `resolve` and `revise` compute a proposal
 and hand it back; the browser holds it. Cancel is the browser dropping it, which
 is why there is no route for it and nothing to clean up afterwards — the asset
@@ -88,6 +98,7 @@ supply, and one `resolutions` row records what was applied.
 | `POST /resolve` | propose a mapping. Writes nothing |
 | `POST /revise` | a plain-language correction, re-proposed. Writes nothing |
 | `POST /accept` | apply it. The only route that writes to the catalog |
+| `POST /discard` | delete the raw row for an unlinked asset. Never touches the bucket |
 
 Configuration: `ANTHROPIC_API_KEY` (without it, only this page stops working),
 `RESOLVER_MODEL` (default `claude-sonnet-5`), and `INGEST_STAGING_DIR` — a

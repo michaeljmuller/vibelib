@@ -34,6 +34,12 @@ let nextUpload = 1;
 // The one open proposal, or null. Never on the server.
 let open = null;
 
+// The row whose Remove button is waiting to be confirmed, and what went wrong
+// the last time one was. Also never on the server: an unconfirmed removal, like
+// an unaccepted proposal, has changed nothing.
+let discarding = null;
+let discardError = null;
+
 const el = (tag, props = {}, ...children) => {
   const node = Object.assign(document.createElement(tag), props);
   for (const c of children) if (c != null) node.append(c);
@@ -187,10 +193,49 @@ function readyNode(entry) {
     return el('div', { className: 'item open' }, row, open.card ? cardNode(open) : busyNode(open));
   }
 
-  const button = el('button', { className: 'ready item', type: 'button' }, row);
-  button.onclick = () => resolveAsset(entry);
-  button.disabled = open != null;
-  return button;
+  const choose = el('button', { className: 'ready', type: 'button' }, row);
+  choose.onclick = () => resolveAsset(entry);
+  choose.disabled = open != null;
+
+  const remove = el('button', {
+    className: 'ghost danger remove', type: 'button', textContent: 'Remove',
+    title: 'Forget this file — deletes the record, not the file',
+  });
+  remove.onclick = () => {
+    discarding = key;
+    renderB();
+  };
+  remove.disabled = open != null;
+
+  const item = el('div', { className: 'item ready-item' },
+    el('div', { className: 'ready-line' }, choose, remove));
+  if (discarding === key) item.append(confirmNode(entry));
+  return item;
+}
+
+// Two clicks rather than a confirm() box, because what has to be said does not
+// fit in one: this removes a record and not a file, and the file being still in
+// the bucket means the next check will read it straight back in.
+function confirmNode(entry) {
+  const go = el('button', { className: 'ghost danger', type: 'button', textContent: 'Remove record' });
+  go.onclick = () => discardAsset(entry);
+
+  const cancel = el('button', { className: 'ghost', type: 'button', textContent: 'Keep it' });
+  cancel.onclick = () => {
+    discarding = null;
+    renderB();
+  };
+
+  return el(
+    'div',
+    { className: 'card' },
+    el('p', { className: 'why', textContent:
+      `Removes what was read from “${entry.s3_key}” — the object stays in the bucket, `
+      + 'and the next bucket check will read it in again. Delete the object first if '
+      + 'it should stay gone.' }),
+    discardError ? el('p', { className: 'item-error', textContent: discardError }) : null,
+    el('div', { className: 'card-actions' }, go, cancel),
+  );
 }
 
 const busyNode = (state) =>
@@ -282,6 +327,8 @@ function cardNode(state) {
 }
 
 async function resolveAsset(entry) {
+  discarding = null;  // asking to add a row answers the question about removing one
+  discardError = null;
   open = { key: `${entry.asset_type}:${entry.asset_id}`, entry, card: null, error: null };
   renderB();
   try {
@@ -293,6 +340,22 @@ async function resolveAsset(entry) {
     open.error = exc.message;
   }
   renderB();
+}
+
+async function discardAsset(entry) {
+  try {
+    await post('/api/admin/ingest/discard', {
+      asset_type: entry.asset_type,
+      asset_id: entry.asset_id,
+    });
+    discarding = null;
+    discardError = null;
+    await poll();
+    say(`Removed the record of “${entry.s3_key}”. The file itself is untouched.`);
+  } catch (exc) {
+    discardError = exc.message;
+    renderB();
+  }
 }
 
 async function revise(state, instruction) {
@@ -351,6 +414,12 @@ async function poll() {
   const state = await res.json();
   jobs = state.list_a;
   ready = state.list_b;
+  // A confirmation belongs to a row; if the row is gone -- removed here, or
+  // added to a book in another tab -- the question it was asking is moot.
+  if (discarding && !ready.some((e) => `${e.asset_type}:${e.asset_id}` === discarding)) {
+    discarding = null;
+    discardError = null;
+  }
   renderA();
   renderB();
 
