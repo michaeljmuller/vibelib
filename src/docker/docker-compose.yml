@@ -46,6 +46,13 @@ services:
       PGDATABASE: vibelib
       PGUSER: vibelib
       PGPASSWORD: ${POSTGRES_PASSWORD}
+      # A container with no TZ runs on UTC, which makes "today" wrong for the
+      # last few hours of every local day -- an audiobook added at 7pm gets
+      # tomorrow's acquisition date. The only dates this app writes are the
+      # human kind (when a book entered the library), so it wants the zone the
+      # human is in. Timestamps in the database stay TIMESTAMPTZ and are
+      # unaffected.
+      TZ: ${TZ:-America/Denver}
       WEB_COVERS_DIR: /covers
       OBJECT_STORE_ACCESS_KEY_ID: ${OBJECT_STORE_ACCESS_KEY_ID}
       OBJECT_STORE_SECRET_ACCESS_KEY: ${OBJECT_STORE_SECRET_ACCESS_KEY}

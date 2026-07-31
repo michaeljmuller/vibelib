@@ -80,7 +80,14 @@ def _card(conn, asset_type: str, asset_id: int, proposal: dict, confidence, note
             if covers.find_cover(asset_type, asset_id)
             else None
         ),
-        "acquired_on": store.get_acquired_on(conn, asset_type, asset_id),
+        # Today unless the asset already carries a date. A file read here was
+        # stamped with today at ingest, so the fallback is for the ones that
+        # arrived another way -- the old CLI, or before acquisitions existed --
+        # and today is the honest answer for something being added right now.
+        # Editable either way: the card is where a file bought years ago and
+        # only now uploaded gets its real date.
+        "acquired_on": store.get_acquired_on(conn, asset_type, asset_id)
+        or datetime.date.today(),
     }
 
 
