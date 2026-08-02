@@ -28,8 +28,8 @@ const state = { offset: 0, total: 0, loading: false, done: false, generation: 0 
 // A session that expired while the tab sat open turns every request into a 401.
 // Bounce to the login page rather than letting the UI quietly render nothing, and
 // remember where we were so signing back in returns us here.
-async function api(path) {
-  const res = await fetch(path);
+async function api(path, options) {
+  const res = await fetch(path, options);
   if (res.status === 401) {
     const here = location.pathname + location.search + location.hash;
     location.assign(`/login?next=${encodeURIComponent(here)}`);
@@ -39,6 +39,17 @@ async function api(path) {
 }
 
 const getJSON = async (path) => (await api(path)).json();
+
+const post = (path, body) =>
+  api(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+// Set from /api/me. Courtesy only, exactly like the header links: every route
+// behind this checks it server-side.
+let isAdmin = false;
 
 // --- formatting -------------------------------------------------------
 
@@ -234,6 +245,133 @@ function editionButton(edition, type) {
   );
 }
 
+// --- corrections (admin) ----------------------------------------------
+//
+// Same bargain as the review card on the ingest page: say what is wrong in
+// plain language, read what that would do to the record, and nothing is written
+// until Accept. Held entirely in this closure, so closing the card or pressing
+// Escape abandons it -- which costs nothing, because nothing was stored.
+
+const rowNode = (row) =>
+  el(
+    'div',
+    { className: 'row' },
+    el('span', { className: 'row-label', textContent: row.label }),
+    el(
+      'span',
+      { className: 'row-value' },
+      row.verb ? el('span', { className: `verb ${row.verb}`, textContent: row.verb }) : null,
+      el('span', { textContent: row.text }),
+      row.warning ? el('span', { className: 'warn', textContent: `⚠ ${row.warning}` }) : null,
+    ),
+  );
+
+function correctionPanel(book) {
+  const wrap = el('div', { className: 'correct' });
+
+  const opener = el('button', {
+    className: 'ghost correct-open', type: 'button',
+    textContent: 'Something’s wrong…',
+    title: 'Tell the catalog what it got wrong about this book',
+  });
+  const collapse = () => wrap.replaceChildren(opener);
+  collapse();
+
+  opener.onclick = () => {
+    const box = el('textarea', {
+      className: 'correct-input', rows: 2,
+      placeholder: 'e.g. the publication date is wrong — or: you got the author wrong, it’s Ursula K. Le Guin',
+    });
+    const ask = el('button', { className: 'primary', type: 'button', textContent: 'Ask' });
+    const cancel = el('button', { className: 'ghost', type: 'button', textContent: 'Cancel' });
+    const msg = el('p', { className: 'correct-msg', hidden: true });
+    const out = el('div', {});
+
+    const say = (text, bad = false) => {
+      msg.textContent = text || '';
+      msg.hidden = !text;
+      msg.classList.toggle('bad', bad);
+    };
+
+    cancel.onclick = collapse;
+
+    ask.onclick = async () => {
+      const instruction = box.value.trim();
+      if (!instruction) return box.focus();
+      ask.disabled = true;
+      out.replaceChildren();
+      say('Working out what that means…');
+      try {
+        const res = await post(`/api/admin/books/${book.id}/correction`, { instruction });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          say(body.detail || 'That did not work.', true);
+          return;
+        }
+        say(body.notes);
+        out.append(proposedNode(book, body, collapse, say));
+      } catch {
+        say('The server could not be reached.', true);
+      } finally {
+        ask.disabled = false;
+      }
+    };
+
+    wrap.replaceChildren(
+      el('div', { className: 'correct-form' },
+        box,
+        el('div', { className: 'correct-actions' }, ask, cancel),
+        msg,
+        out),
+    );
+    box.focus();
+  };
+
+  return wrap;
+}
+
+// What the correction would do, and the only button here that writes.
+function proposedNode(book, body, collapse, say) {
+  const accept = el('button', { className: 'primary', type: 'button', textContent: 'Accept' });
+  const discard = el('button', { className: 'ghost', type: 'button', textContent: 'Discard' });
+
+  accept.onclick = async () => {
+    accept.disabled = true;
+    discard.disabled = true;
+    try {
+      const res = await post(`/api/admin/books/${book.id}/correction/accept`, {
+        correction: body.correction,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        say(err.detail || 'That could not be applied.', true);
+        accept.disabled = false;
+        discard.disabled = false;
+        return;
+      }
+      // Re-read the book rather than patching the card: the correction may have
+      // moved it into a series, which changes the sibling strip too. Reload the
+      // grid behind it for the same reason -- its tile is now out of date.
+      await open(book.id);
+      reload();
+    } catch {
+      say('The server could not be reached.', true);
+      accept.disabled = false;
+      discard.disabled = false;
+    }
+  };
+  discard.onclick = collapse;
+
+  const confidence =
+    body.confidence == null ? '' : `The model's confidence: ${body.confidence.toFixed(2)}`;
+
+  return el('div', { className: 'correct-proposal' },
+    el('h3', { textContent: 'This would change' }),
+    ...body.rows.map(rowNode),
+    confidence ? el('p', { className: 'correct-confidence', textContent: confidence }) : null,
+    el('div', { className: 'correct-actions' }, accept, discard));
+}
+
 function renderDetail(book) {
   const art = el('div', { className: 'art' });
   if (book.cover) {
@@ -289,6 +427,10 @@ function renderDetail(book) {
     desc.innerHTML = sanitize(book.description);
     card.append(desc);
   }
+
+  // Last, and below the description: it is the rarest thing anyone does here,
+  // and it should not sit between a reader and the book.
+  if (isAdmin) card.append(correctionPanel(book));
 
   if (book.siblings.length > 1) {
     const strip = el('div', { className: 'strip' });
@@ -382,6 +524,7 @@ new IntersectionObserver((entries) => {
 async function loadAccount() {
   const { name, is_admin } = await getJSON('/api/me');
   els.whoami.textContent = name;
+  isAdmin = is_admin;
   // Courtesy, not security: /admin, /ingest and every route behind them check
   // this server-side. Hiding the links just keeps them out of the way of people
   // they would only refuse.
@@ -389,8 +532,10 @@ async function loadAccount() {
   els.addBooks.hidden = !is_admin;
 }
 
-loadAccount();
+const account = loadAccount();
 loadFilters();
 loadPage();
+// Deep link waits on the account: whether the card gets its admin controls is
+// decided while it renders, and rendering first would silently omit them.
 const deepLink = location.hash.match(/^#book\/(\d+)$/);
-if (deepLink) open(Number(deepLink[1]));
+if (deepLink) account.then(() => open(Number(deepLink[1])));

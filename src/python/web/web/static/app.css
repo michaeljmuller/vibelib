@@ -296,6 +296,48 @@ main { padding: 20px; }
 .desc p { margin: 0 0 10px; }
 .desc h3 { font-size: 14px; margin: 0 0 8px; }
 
+/* Admin-only, at the foot of the detail card. Collapsed it is one quiet button;
+   opened it is the same propose-review-accept shape as the ingest review card. */
+.correct { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
+.correct-open { color: var(--muted); }
+.correct-form { display: flex; flex-direction: column; gap: 10px; }
+.correct-input {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+.correct-input:focus { outline: none; border-color: var(--accent); }
+.correct-actions { display: flex; gap: 8px; }
+.correct-msg {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.correct-msg.bad { color: #e06c75; }
+.correct-proposal {
+  margin-top: 4px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.correct-proposal h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.correct-proposal .correct-actions { margin-top: 12px; }
+.correct-confidence { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
+
 .siblings { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
 .siblings h2 { margin: 0 0 12px; font-size: 13px; color: var(--muted); font-weight: 600; }
 
