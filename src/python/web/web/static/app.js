@@ -40,13 +40,6 @@ async function api(path, options) {
 
 const getJSON = async (path) => (await api(path)).json();
 
-const post = (path, body) =>
-  api(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
 // Set from /api/me. Courtesy only, exactly like the header links: every route
 // behind this checks it server-side.
 let isAdmin = false;
@@ -245,33 +238,11 @@ function editionButton(edition, type) {
   );
 }
 
-// --- corrections (admin) ----------------------------------------------
-//
-// Same bargain as the review card on the ingest page: say what is wrong in
-// plain language, read what that would do to the record, and nothing is written
-// until Accept. Held entirely in this closure, so closing the card or pressing
-// Escape abandons it -- which costs nothing, because nothing was stored.
-
-const rowNode = (row) =>
-  el(
-    'div',
-    { className: 'row' },
-    el('span', { className: 'row-label', textContent: row.label }),
-    el(
-      'span',
-      { className: 'row-value' },
-      row.verb ? el('span', { className: `verb ${row.verb}`, textContent: row.verb }) : null,
-      el('span', { textContent: row.text }),
-      row.warning ? el('span', { className: 'warn', textContent: `⚠ ${row.warning}` }) : null,
-    ),
-  );
-
 // --- the edit form (admin) --------------------------------------------
 //
 // The plain way to change a book: the fields as they are stored, edited
 // directly. No model, no proposal, no accept step -- the form shows what is
-// stored and stores what the form shows. The correction panel below it is for
-// the other case, where you know a value is wrong but not what it should be.
+// stored and stores what the form shows.
 //
 // The raw epub/m4b rows are deliberately absent: they record what the file
 // itself said, and rewriting them would falsify the record rather than correct
@@ -360,7 +331,7 @@ function editPanel(book, done) {
     input: el('input', { type: 'date', className: 'f-input', value: a.edition.acquired_on || '' }),
   }));
 
-  const msg = el('p', { className: 'correct-msg', hidden: true });
+  const msg = el('p', { className: 'form-msg', hidden: true });
   const say = (text, bad = false) => {
     msg.textContent = text || '';
     msg.hidden = !text;
@@ -387,9 +358,8 @@ function editPanel(book, done) {
           title: title.value.trim(),
           authors: authors.resolve(),
           series: series.resolve(),
-          // Empty means empty: the form submits the whole record, so clearing a
-          // box clears the column. That is the one thing the correction path
-          // cannot express.
+          // Empty means empty: the form submits the whole record, so
+          // clearing a box clears the column.
           series_position: position.value === '' ? null : Number(position.value),
           publication_date: published.value || null,
           language: lang.value.trim() || null,
@@ -433,126 +403,25 @@ function editPanel(book, done) {
       field('Language', lang, 'e.g. en, pt-PT')),
     ...assets.map((a) => field(`Acquired · ${a.label}`, a.input)),
     msg,
-    el('div', { className: 'correct-actions' }, save, cancel));
+    el('div', { className: 'form-actions' }, save, cancel));
 }
 
-// The two doors, which answer different questions: Edit when you know what the
-// record should say, "Something's wrong" when you only know it is wrong.
+// Admin-only: the one way to change what the catalog records about a book.
 function adminPanel(book) {
-  const wrap = el('div', { className: 'correct' });
-
-  const editOpener = el('button', {
+  const wrap = el('div', { className: 'admin' });
+  const opener = el('button', {
     className: 'ghost', type: 'button', textContent: 'Edit',
     title: 'Change what the catalog records about this book',
   });
-  const opener = el('button', {
-    className: 'ghost correct-open', type: 'button',
-    textContent: 'Something’s wrong…',
-    title: 'Say what is wrong and let the model work out the fix',
-  });
-  const collapse = () =>
-    wrap.replaceChildren(el('div', { className: 'correct-actions' }, editOpener, opener));
+  const collapse = () => wrap.replaceChildren(opener);
   collapse();
-
-  editOpener.onclick = () => {
+  opener.onclick = () => {
     wrap.replaceChildren(editPanel(book, collapse));
     wrap.querySelector('input').focus();
   };
-
-  opener.onclick = () => {
-    const box = el('textarea', {
-      className: 'correct-input', rows: 2,
-      placeholder: 'e.g. the publication date is wrong — or: you got the author wrong, it’s Ursula K. Le Guin',
-    });
-    const ask = el('button', { className: 'primary', type: 'button', textContent: 'Ask' });
-    const cancel = el('button', { className: 'ghost', type: 'button', textContent: 'Cancel' });
-    const msg = el('p', { className: 'correct-msg', hidden: true });
-    const out = el('div', {});
-
-    const say = (text, bad = false) => {
-      msg.textContent = text || '';
-      msg.hidden = !text;
-      msg.classList.toggle('bad', bad);
-    };
-
-    cancel.onclick = collapse;
-
-    ask.onclick = async () => {
-      const instruction = box.value.trim();
-      if (!instruction) return box.focus();
-      ask.disabled = true;
-      out.replaceChildren();
-      say('Working out what that means…');
-      try {
-        const res = await post(`/api/admin/books/${book.id}/correction`, { instruction });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          say(body.detail || 'That did not work.', true);
-          return;
-        }
-        say(body.notes);
-        out.append(proposedNode(book, body, collapse, say));
-      } catch {
-        say('The server could not be reached.', true);
-      } finally {
-        ask.disabled = false;
-      }
-    };
-
-    wrap.replaceChildren(
-      el('div', { className: 'correct-form' },
-        box,
-        el('div', { className: 'correct-actions' }, ask, cancel),
-        msg,
-        out),
-    );
-    box.focus();
-  };
-
   return wrap;
 }
 
-// What the correction would do, and the only button here that writes.
-function proposedNode(book, body, collapse, say) {
-  const accept = el('button', { className: 'primary', type: 'button', textContent: 'Accept' });
-  const discard = el('button', { className: 'ghost', type: 'button', textContent: 'Discard' });
-
-  accept.onclick = async () => {
-    accept.disabled = true;
-    discard.disabled = true;
-    try {
-      const res = await post(`/api/admin/books/${book.id}/correction/accept`, {
-        correction: body.correction,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        say(err.detail || 'That could not be applied.', true);
-        accept.disabled = false;
-        discard.disabled = false;
-        return;
-      }
-      // Re-read the book rather than patching the card: the correction may have
-      // moved it into a series, which changes the sibling strip too. Reload the
-      // grid behind it for the same reason -- its tile is now out of date.
-      await open(book.id);
-      reload();
-    } catch {
-      say('The server could not be reached.', true);
-      accept.disabled = false;
-      discard.disabled = false;
-    }
-  };
-  discard.onclick = collapse;
-
-  const confidence =
-    body.confidence == null ? '' : `The model's confidence: ${body.confidence.toFixed(2)}`;
-
-  return el('div', { className: 'correct-proposal' },
-    el('h3', { textContent: 'This would change' }),
-    ...body.rows.map(rowNode),
-    confidence ? el('p', { className: 'correct-confidence', textContent: confidence }) : null,
-    el('div', { className: 'correct-actions' }, accept, discard));
-}
 
 function renderDetail(book) {
   const art = el('div', { className: 'art' });

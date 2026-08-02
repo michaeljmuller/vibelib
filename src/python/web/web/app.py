@@ -17,7 +17,6 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, covers, curate, db, migrate, s3
 from .ingest import api as ingest_api
-from .ingest import corrections
 from .ingest.worker import worker as ingest_worker
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -61,7 +60,6 @@ app.add_middleware(
 )
 app.include_router(auth.router)
 app.include_router(ingest_api.router)
-app.include_router(corrections.router)
 app.include_router(curate.router)
 
 
