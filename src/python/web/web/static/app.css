@@ -1,4 +1,8 @@
 :root {
+  /* The page is dark; say so, or the browser draws its own widgets for a light
+     one -- the date field's calendar button is a black glyph until told. */
+  color-scheme: dark;
+
   --bg: #14161a;
   --surface: #1d2026;
   --surface-2: #262a32;
@@ -478,7 +482,6 @@ main { padding: 20px; }
 /* List B rows: the file, then the two things you can do to it. Nothing in the
    row itself is clickable -- both actions are named buttons. */
 .ready-line { display: flex; align-items: center; gap: 8px; padding-right: 12px; }
-.ready-line button:disabled { opacity: .5; cursor: default; }
 .ready-row {
   display: flex;
   align-items: center;
@@ -502,9 +505,13 @@ button.primary, button.ghost {
   cursor: pointer;
 }
 button.primary { background: var(--accent); border-color: var(--accent); color: #10141c; font-weight: 600; }
-button.primary:hover { filter: brightness(1.08); }
-button.ghost:hover { border-color: var(--accent); }
-button.ghost.danger:hover { color: #e06c75; border-color: #e06c75; }
+button.primary:hover:enabled { filter: brightness(1.08); }
+button.ghost:hover:enabled { border-color: var(--accent); }
+button.ghost.danger:hover:enabled { color: #e06c75; border-color: #e06c75; }
+
+/* A button that cannot be pressed says so wherever it is -- Accept spends a
+   click on a proposal, so it must not look ready before there is one. */
+button:disabled { opacity: .45; cursor: default; }
 .panel h2 button { margin-left: 0; }
 
 .item {
@@ -560,21 +567,59 @@ button.ghost.danger:hover { color: #e06c75; border-color: #e06c75; }
 .verb.update { color: #e5c07b; }
 .warn { display: block; margin-top: 2px; color: #e5c07b; font-size: 12px; }
 
+/* Sits in the Proposed column while the model call is out. */
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 3px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.spinner {
+  flex: 0 0 13px;
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* A spinning ring is decoration; someone who has asked for less motion is told
+   the same thing by the words next to it. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 3s; }
+}
+
 .why { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
 .notes { margin: 4px 0 0; font-size: 13px; }
 
 .card-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
-.acquired-label { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+/* Sits in the Proposed column as a row like any other, so it reads as one of
+   the asset's fields. Chrome-less until pointed at, then it admits to being
+   editable -- the row it lines up with is plain text, and a permanently boxed
+   input beside plain text is the thing that made it look bolted on. */
 .acquired {
-  margin-left: 8px;
-  height: 30px;
-  padding: 0 8px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  /* The negative left margin cancels the padding and border, so the date
+     starts on the same line as the plain values above it. */
+  margin: -3px 0 -3px -6px;
+  padding: 2px 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
   color: var(--text);
   font: inherit;
   font-size: 13px;
+  line-height: inherit;
+}
+.acquired:hover { border-color: var(--line); }
+.acquired:focus {
+  outline: none;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 .instruction {
   width: 100%;
@@ -598,7 +643,6 @@ button.ghost.danger:hover { color: #e06c75; border-color: #e06c75; }
   .card-cols { flex-direction: column; gap: 14px; }
   .col-thumb { display: none; }
   .card-actions { flex-wrap: wrap; }
-  .acquired-label { margin-left: 0; }
 
   /* The filter row already wraps; let the account chip ride along with it rather
      than squeezing the search field. */

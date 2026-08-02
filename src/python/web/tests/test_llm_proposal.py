@@ -7,12 +7,13 @@ from web.ingest.llm import (
 )
 
 
-def _adjudication(book: BookDecision) -> Adjudication:
+def _adjudication(book: BookDecision, acquired_on: str | None = None) -> Adjudication:
     return Adjudication(
         book=book,
         authors=[],
         narrators=[],
         pseudonym_proposals=[],
+        acquired_on=acquired_on,
         metadata_insufficient=False,
         confidence=0.95,
         notes="",
@@ -56,3 +57,26 @@ class TestToProposalUpdate:
         )
         p = to_proposal(adj)
         assert "update" not in p["book"]
+
+
+class TestToProposalAcquired:
+    """The acquisition date is the reviewer's to set, not the model's to guess,
+    so it only appears in a proposal when a correction put it there."""
+
+    def test_absent_when_the_model_gives_none(self):
+        adj = _adjudication(BookDecision(link_book_id=63, update=None, create=None))
+        assert "acquired_on" not in to_proposal(adj)
+
+    def test_carried_through_when_given(self):
+        adj = _adjudication(
+            BookDecision(link_book_id=63, update=None, create=None),
+            acquired_on="2026-07-27",
+        )
+        assert to_proposal(adj)["acquired_on"] == "2026-07-27"
+
+    def test_junk_is_dropped_rather_than_shown(self):
+        adj = _adjudication(
+            BookDecision(link_book_id=63, update=None, create=None),
+            acquired_on="last Tuesday",
+        )
+        assert "acquired_on" not in to_proposal(adj)

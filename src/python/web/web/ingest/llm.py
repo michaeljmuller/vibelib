@@ -6,6 +6,7 @@ on the explicit fallback path.
 """
 
 import base64
+import datetime
 import json
 import logging
 import os
@@ -103,6 +104,7 @@ class Adjudication(BaseModel):
     authors: list[PersonRef]
     narrators: list[PersonRef]
     pseudonym_proposals: list[PseudonymProposal]
+    acquired_on: str | None  # only when a reviewer correction states one
     metadata_insufficient: bool
     confidence: float
     notes: str
@@ -165,6 +167,13 @@ date.
 - language: the work's language as a BCP-47 code ('en', 'pt', 'pt-PT'). Use \
 the asset's language field when present; otherwise the language the metadata \
 is evidently in; null if unclear.
+- acquired_on: when this FILE was obtained — a fact about the copy, and a \
+different fact from publication_date, which is the work's first publication. \
+Nothing in the metadata can tell you it, so leave it null. The one exception \
+is a reviewer correction that states one ("acquired July 27", "I bought this \
+last year"): then give it as ISO YYYY-MM-DD, resolving a partial date against \
+the `today` you were given. A correction about acquisition must never change \
+publication_date, and vice versa.
 - Narrators are people too, and may be the same person as an author \
 (self-narrated) — if so, link the same person for both roles.
 - confidence: the probability (0.0-1.0) that a human reviewer would accept \
@@ -190,14 +199,20 @@ def revise(
     candidates: dict[str, Any],
     prior_proposal: dict[str, Any],
     instruction: str,
+    acquired_on: datetime.date,
 ) -> tuple["Adjudication", dict[str, int]]:
     """Revise a prior proposal per a human reviewer's plain-language correction.
     Same schema and system prompt as adjudicate(); the correction is
-    authoritative over the model's own judgment."""
+    authoritative over the model's own judgment.
+
+    `today` is here because a correction is written the way a person speaks --
+    "acquired July 27" carries no year -- and the model has no clock."""
     payload = {
         "asset": {k: v for k, v in meta.items() if v not in (None, [], "")},
         "candidates": candidates,
         "your_previous_proposal": prior_proposal,
+        "current_acquired_on": acquired_on.isoformat(),
+        "today": datetime.date.today().isoformat(),
         "reviewer_correction": instruction,
     }
     response = client.messages.parse(
@@ -386,9 +401,17 @@ def to_proposal(adj: Adjudication) -> dict[str, Any]:
                 "language": norm_language(nb.language),
             }
         }
-    return {
+    proposal: dict[str, Any] = {
         "book": book,
         "authors": [_person_action(a) for a in adj.authors],
         "narrators": [_person_action(n) for n in adj.narrators],
         "pseudonyms": [p.model_dump() for p in adj.pseudonym_proposals],
     }
+    # Absent unless a correction supplied one, so that a proposal looks the same
+    # here as it does coming out of the free tier-1 path, which has no model to
+    # ask. (parse_pub_date is just an ISO-date validator; nothing about it is
+    # specific to publication.)
+    acquired = parse_pub_date(adj.acquired_on)
+    if acquired is not None:
+        proposal["acquired_on"] = acquired
+    return proposal

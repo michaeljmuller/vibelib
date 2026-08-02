@@ -46,6 +46,10 @@ class AssetRef(BaseModel):
 class Revision(AssetRef):
     proposal: dict
     instruction: str
+    # What the card's date field shows right now. Nothing is stored until
+    # accept, so the browser is the only place an edited-but-not-yet-accepted
+    # date exists -- without this the trip through the model would lose it.
+    acquired_on: datetime.date | None = None
 
 
 class Acceptance(AssetRef):
@@ -61,7 +65,28 @@ def _check(ref: AssetRef) -> None:
 # --- the card ----------------------------------------------------------------
 
 
-def _card(conn, asset_type: str, asset_id: int, proposal: dict, confidence, notes) -> dict:
+def _file_side(conn, asset_type: str, asset_id: int, meta: dict | None) -> dict:
+    """The half of the card that comes from the file itself. Separate because it
+    is knowable instantly, while the other half costs a model call."""
+    return {
+        "raw_rows": summary.raw_rows(meta) if meta else [],
+        "cover": (
+            {"type": asset_type, "id": asset_id}
+            if covers.find_cover(asset_type, asset_id)
+            else None
+        ),
+    }
+
+
+def _card(
+    conn,
+    asset_type: str,
+    asset_id: int,
+    proposal: dict,
+    confidence,
+    notes,
+    acquired_on: datetime.date | None = None,
+) -> dict:
     """Everything the browser needs to render one proposal for judgment -- and,
     since nothing is stored, everything it needs to hand back to accept it."""
     meta = store.get_asset_meta(conn, asset_type, asset_id)
@@ -73,20 +98,19 @@ def _card(conn, asset_type: str, asset_id: int, proposal: dict, confidence, note
         "confidence": confidence,
         "notes": notes,
         "reason": summary.review_reason(proposal, confidence),
-        "raw_rows": summary.raw_rows(meta) if meta else [],
         "proposal_rows": summary.proposal_rows(proposal, names),
-        "cover": (
-            {"type": asset_type, "id": asset_id}
-            if covers.find_cover(asset_type, asset_id)
-            else None
-        ),
-        # Today unless the asset already carries a date. A file read here was
-        # stamped with today at ingest, so the fallback is for the ones that
-        # arrived another way -- the old CLI, or before acquisitions existed --
-        # and today is the honest answer for something being added right now.
-        # Editable either way: the card is where a file bought years ago and
-        # only now uploaded gets its real date.
-        "acquired_on": store.get_acquired_on(conn, asset_type, asset_id)
+        **_file_side(conn, asset_type, asset_id, meta),
+        # Most recent answer first: a date the model was told to set, then the
+        # one the reviewer already had on screen, then what the asset carries.
+        # A file read here was stamped with today at ingest, so the last
+        # fallback is for the ones that arrived another way -- the old CLI, or
+        # before acquisitions existed -- and today is the honest answer for
+        # something being added right now. Editable throughout: the card is
+        # where a file bought years ago and only now uploaded gets its real
+        # date.
+        "acquired_on": proposal.get("acquired_on")
+        or acquired_on
+        or store.get_acquired_on(conn, asset_type, asset_id)
         or datetime.date.today(),
     }
 
@@ -165,6 +189,23 @@ def api_upload(file: UploadFile = File(...)):
 # --- list B: turning a file into a book --------------------------------------
 
 
+@router.get("/meta/{asset_type}/{asset_id}")
+def api_meta(asset_type: str, asset_id: int):
+    """What the file says, with no model involved -- a couple of queries.
+
+    The browser asks for this the moment Add is clicked, alongside /resolve,
+    so the card can open on the file's own metadata while the model is still
+    thinking. Waiting for both to arrive together would mean several seconds of
+    a page that looks like nothing happened.
+    """
+    _check(AssetRef(asset_type=asset_type, asset_id=asset_id))
+    with db.pool.connection() as conn:
+        meta = store.get_asset_meta(conn, asset_type, asset_id)
+        if meta is None:
+            raise HTTPException(404, "no such asset")
+        return _file_side(conn, asset_type, asset_id, meta)
+
+
 @router.post("/resolve")
 def api_resolve(ref: AssetRef):
     """Propose how this asset maps onto the catalog. Writes nothing."""
@@ -197,9 +238,19 @@ def api_revise(body: Revision):
         if meta is None:
             raise HTTPException(404, "no such asset")
         cands = candidates.get_candidates(conn, meta)
+        current_acquired = (
+            body.acquired_on
+            or store.get_acquired_on(conn, body.asset_type, body.asset_id)
+            or datetime.date.today()
+        )
         try:
             adj, _usage = llm.revise(
-                anthropic.Anthropic(), meta, cands, body.proposal, instruction
+                anthropic.Anthropic(),
+                meta,
+                cands,
+                body.proposal,
+                instruction,
+                current_acquired,
             )
             proposal = llm.to_proposal(adj)
         except anthropic.APIError:
@@ -211,6 +262,7 @@ def api_revise(body: Revision):
         return _card(
             conn, body.asset_type, body.asset_id,
             proposal, adj.confidence, f"{adj.notes} [edited: {instruction}]",
+            acquired_on=current_acquired,
         )
 
 

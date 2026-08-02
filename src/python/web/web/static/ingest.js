@@ -75,6 +75,12 @@ async function problem(res) {
   return `Something went wrong (${res.status}).`;
 }
 
+async function get(path) {
+  const res = await api(path);
+  if (!res.ok) throw new Error(await problem(res));
+  return res.json();
+}
+
 async function post(path, body) {
   const res = await api(path, {
     method: 'POST',
@@ -191,7 +197,7 @@ function readyNode(entry) {
   );
 
   if (open && open.key === key) {
-    return el('div', { className: 'item open' }, row, open.card ? cardNode(open) : busyNode(open));
+    return el('div', { className: 'item open' }, row, cardNode(open));
   }
 
   // Named buttons rather than a clickable row: the two things you can do to a
@@ -245,11 +251,6 @@ function confirmNode(entry) {
   );
 }
 
-const busyNode = (state) =>
-  el('div', { className: 'card' },
-    el('p', { className: state.error ? 'item-error' : 'dim',
-              textContent: state.error || 'Working out where this belongs…' }));
-
 function renderB() {
   els.listB.replaceChildren(...ready.map(readyNode));
   els.bNote.textContent = ready.length
@@ -258,6 +259,9 @@ function renderB() {
 }
 
 // --- the proposal card ------------------------------------------------
+
+const confidenceText = (card) =>
+  card.confidence == null ? 'confidence ?' : `confidence ${card.confidence.toFixed(2)}`;
 
 const rowNode = (row) =>
   el(
@@ -275,12 +279,34 @@ const rowNode = (row) =>
 
 function cardNode(state) {
   const { card } = state;
-  const confidence =
-    card.confidence == null ? 'confidence ?' : `confidence ${card.confidence.toFixed(2)}`;
-
+  // The file's own half of the card is two queries away; the model's half takes
+  // seconds. `side` is whichever of them has arrived -- the card repeats the
+  // fields the meta call returned, so the left column never changes under the
+  // reviewer when the proposal lands beside it.
+  const side = card || state.meta || { raw_rows: [], cover: null };
   const acquired = el('input', {
-    type: 'date', className: 'acquired', value: card.acquired_on || '',
+    type: 'date', className: 'acquired', value: (card && card.acquired_on) || '',
   });
+  // Reads as one more proposed field, because that is what it is -- the only
+  // difference being that this one is the reviewer's to type rather than the
+  // model's to guess.
+  const acquiredRow = el(
+    'div',
+    { className: 'row' },
+    el('span', { className: 'row-label', textContent: 'Acquired' }),
+    el('span', { className: 'row-value' }, acquired),
+  );
+
+  // Until the proposal lands the right-hand column is the wait itself: the
+  // spinner sits where the answer will be, so the shape of the card is the same
+  // before and after.
+  const proposedCol = card
+    ? [...card.proposal_rows.map(rowNode), acquiredRow]
+    : [
+        el('p', { className: state.error ? 'item-error' : 'thinking' },
+          state.error ? null : el('span', { className: 'spinner' }),
+          el('span', { textContent: state.error || 'Working out where this belongs…' })),
+      ];
 
   const instruction = el('input', {
     type: 'text',
@@ -289,13 +315,20 @@ function cardNode(state) {
     hidden: true,
   });
   instruction.onkeydown = (e) => {
-    if (e.key === 'Enter') revise(state, instruction.value.trim());
+    if (e.key === 'Enter') revise(state, instruction.value.trim(), acquired.value);
   };
 
-  const accept = el('button', { className: 'primary', type: 'button', textContent: 'Accept' });
+  // Present but dead while the model is thinking, so the buttons do not appear
+  // from nowhere under a cursor that is already there. Cancel always works:
+  // waiting for a proposal is not a commitment to one.
+  const accept = el('button', {
+    className: 'primary', type: 'button', textContent: 'Accept', disabled: !card,
+  });
   accept.onclick = () => acceptProposal(state, acquired.value);
 
-  const change = el('button', { className: 'ghost', type: 'button', textContent: 'Request changes' });
+  const change = el('button', {
+    className: 'ghost', type: 'button', textContent: 'Request changes', disabled: !card,
+  });
   change.onclick = () => {
     instruction.hidden = !instruction.hidden;
     if (!instruction.hidden) instruction.focus();
@@ -315,20 +348,19 @@ function cardNode(state) {
       'div',
       { className: 'card-cols' },
       el('div', { className: 'col' },
-        el('h3', { textContent: 'In the file' }), ...card.raw_rows.map(rowNode)),
+        el('h3', { textContent: 'In the file' }), ...side.raw_rows.map(rowNode)),
       el('div', { className: 'col' },
-        el('h3', { textContent: 'Proposed' }), ...card.proposal_rows.map(rowNode)),
-      card.cover
+        el('h3', { textContent: 'Proposed' }), ...proposedCol),
+      side.cover
         ? el('div', { className: 'col-thumb' },
             el('img', { className: 'thumb', alt: '',
-                        src: `/covers/${card.cover.type}/${card.cover.id}` }))
+                        src: `/covers/${side.cover.type}/${side.cover.id}` }))
         : null,
     ),
-    el('p', { className: 'why', textContent: `${confidence} · ${card.reason}` }),
-    card.notes ? el('p', { className: 'notes', textContent: card.notes }) : null,
-    state.error ? el('p', { className: 'item-error', textContent: state.error }) : null,
-    el('div', { className: 'card-actions' }, accept, change, cancel,
-      el('label', { className: 'acquired-label' }, 'Acquired', acquired)),
+    card ? el('p', { className: 'why', textContent: `${confidenceText(card)} · ${card.reason}` }) : null,
+    card && card.notes ? el('p', { className: 'notes', textContent: card.notes }) : null,
+    card && state.error ? el('p', { className: 'item-error', textContent: state.error }) : null,
+    el('div', { className: 'card-actions' }, accept, change, cancel),
     instruction,
   );
 }
@@ -336,15 +368,35 @@ function cardNode(state) {
 async function resolveAsset(entry) {
   discarding = null;  // asking to add a row answers the question about removing one
   discardError = null;
-  open = { key: `${entry.asset_type}:${entry.asset_id}`, entry, card: null, error: null };
+  const state = {
+    key: `${entry.asset_type}:${entry.asset_id}`, entry, meta: null, card: null, error: null,
+  };
+  open = state;
   renderB();
+
+  // Both at once, and each renders as it arrives. The card is open from the
+  // click; the file's own metadata fills the left of it almost immediately;
+  // the model's proposal replaces the spinner on the right whenever it is
+  // ready. `open === state` throughout because Cancel or a second Add replaces
+  // it, and a reply to a request nobody is waiting for must not redraw.
+  get(`/api/admin/ingest/meta/${entry.asset_type}/${entry.asset_id}`)
+    .then((meta) => {
+      if (open !== state || state.card) return;
+      state.meta = meta;
+      renderB();
+    })
+    .catch(() => {});  // the resolve call is about to report the same problem
+
   try {
-    open.card = await post('/api/admin/ingest/resolve', {
+    const card = await post('/api/admin/ingest/resolve', {
       asset_type: entry.asset_type,
       asset_id: entry.asset_id,
     });
+    if (open !== state) return;
+    state.card = card;
   } catch (exc) {
-    open.error = exc.message;
+    if (open !== state) return;
+    state.error = exc.message;
   }
   renderB();
 }
@@ -365,9 +417,13 @@ async function discardAsset(entry) {
   }
 }
 
-async function revise(state, instruction) {
+async function revise(state, instruction, acquiredOn) {
   if (!instruction) return;
   const previous = state.card;
+  // A revision is the same wait as the first proposal, so it looks the same:
+  // the file's column stays, the proposal's turns back into a spinner. The old
+  // card stands in for the meta call, carrying the same fields.
+  state.meta = state.meta || previous;
   state.card = null;
   state.error = null;
   renderB();
@@ -377,6 +433,7 @@ async function revise(state, instruction) {
       asset_id: state.entry.asset_id,
       proposal: previous.proposal,
       instruction,
+      acquired_on: acquiredOn || null,
     });
   } catch (exc) {
     state.card = previous;
