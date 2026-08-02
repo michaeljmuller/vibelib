@@ -5,8 +5,6 @@ consumer of it. Everything below is private -- see auth.py for the gate and who
 gets through it.
 """
 
-import datetime
-import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Literal
@@ -17,12 +15,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, covers, db, migrate, s3
+from . import auth, covers, curate, db, migrate, s3
 from .ingest import api as ingest_api
-from .ingest import corrections, store
+from .ingest import corrections
 from .ingest.worker import worker as ingest_worker
-
-log = logging.getLogger("uvicorn.error")
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -66,6 +62,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(ingest_api.router)
 app.include_router(corrections.router)
+app.include_router(curate.router)
 
 
 def _with_cover(book: dict[str, Any]) -> dict[str, Any]:
@@ -213,39 +210,6 @@ class NewUser(BaseModel):
     name: str | None = None
 
 
-class AcquiredOn(BaseModel):
-    acquired_on: datetime.date
-
-
-@app.put("/api/admin/assets/{asset_type}/{asset_id}/acquired-on")
-def api_set_acquired_on(
-    asset_type: AssetType,
-    asset_id: int,
-    body: AcquiredOn,
-    admin: dict = Depends(auth.require_admin),
-):
-    """Correct when one file was acquired.
-
-    Per asset, and deliberately not per book: the date is recorded against the
-    file (see migration 005), the card shows the earliest of a book's files, and
-    for roughly one book in nine the ebook and the audiobook carry genuinely
-    different dates. "The book's acquisition date" would have to pick one of
-    them to overwrite, so this asks which file instead of guessing.
-
-    A plain date in, a plain date out -- there is nothing here to interpret, so
-    unlike a correction to the catalog it neither costs a model call nor needs
-    reviewing before it lands.
-    """
-    with db.pool.connection() as conn:
-        exists = conn.execute(
-            f"SELECT 1 FROM {store.TABLES[asset_type]} WHERE id = %s", (asset_id,)
-        ).fetchone()
-        if exists is None:
-            raise HTTPException(404, "no such asset")
-        store.set_acquired_on(conn, asset_type, asset_id, body.acquired_on)
-        conn.commit()
-    log.info("set %s:%s acquired_on to %s", asset_type, asset_id, body.acquired_on)
-    return {"acquired_on": body.acquired_on}
 
 
 @app.get("/api/users")

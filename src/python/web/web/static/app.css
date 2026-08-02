@@ -296,37 +296,40 @@ main { padding: 20px; }
 .desc p { margin: 0 0 10px; }
 .desc h3 { font-size: 14px; margin: 0 0 8px; }
 
-/* Admin-only, under the download buttons: one date per file. */
-.acquired {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-  margin-top: 12px;
-}
-.acquired-head {
+/* The edit form: the stored fields, edited directly. */
+.edit-form { display: flex; flex-direction: column; gap: 12px; }
+.f { display: flex; flex-direction: column; gap: 4px; }
+.f-label {
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: .04em;
 }
-.acq { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
-.acq-label { color: var(--muted); }
-.acq-input {
-  padding: 3px 6px;
+.f-hint { color: var(--muted); font-size: 11px; }
+.f-input {
+  padding: 7px 10px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius);
   color: var(--text);
   font: inherit;
-  font-size: 12px;
-  color-scheme: dark;
+  font-size: 13px;
+  color-scheme: dark;  /* so the date picker's own chrome is dark too */
 }
-.acq-input:focus { outline: none; border-color: var(--accent); }
-.acq-input:disabled { opacity: .5; }
-.acq-note { color: var(--muted); font-size: 11px; }
-.acq-note.bad { color: #e06c75; }
+.f-input:focus { outline: none; border-color: var(--accent); }
+.f-input:disabled { opacity: .5; }
+.f-narrow { max-width: 160px; }
+/* Two to a line where both are short, stacking on a narrow screen. */
+.f-pair { display: flex; flex-wrap: wrap; gap: 12px; }
+.f-pair .f { flex: 1 1 200px; }
+
+.f-authors { display: flex; flex-direction: column; gap: 6px; }
+.f-author { display: flex; gap: 6px; }
+.f-author .f-input { flex: 1; min-width: 0; }
+.f-remove { flex: none; width: 30px; padding: 0; font-size: 16px; line-height: 1; }
+.f-remove:hover:enabled { color: #e06c75; border-color: #e06c75; }
+.f-add { align-self: flex-start; margin-top: 6px; font-size: 12px; }
 
 /* Admin-only, at the foot of the detail card. Collapsed it is one quiet button;
    opened it is the same propose-review-accept shape as the ingest review card. */

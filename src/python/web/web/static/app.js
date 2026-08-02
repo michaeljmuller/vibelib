@@ -229,57 +229,6 @@ function sanitize(html) {
   return doc.body.innerHTML;
 }
 
-// Admin-only, one per file. A date and nothing else, so there is nothing to
-// review and nothing to accept -- it saves when you change it. Per file rather
-// than per book because that is how it is stored: the card's "Acquired" line is
-// the earliest of a book's files, and for about one book in nine the ebook and
-// the audiobook carry genuinely different dates.
-function acquiredField(edition, type, book) {
-  const input = el('input', {
-    type: 'date', className: 'acq-input', value: edition.acquired_on || '',
-  });
-  const note = el('span', { className: 'acq-note' });
-
-  input.onchange = async () => {
-    if (!input.value) return; // cleared: there is no "unknown" to write
-    input.disabled = true;
-    note.textContent = 'Saving…';
-    note.classList.remove('bad');
-    try {
-      const res = await api(`/api/admin/assets/${type}/${edition.id}/acquired-on`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ acquired_on: input.value }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        note.textContent = err.detail || 'Did not save.';
-        note.classList.add('bad');
-        return;
-      }
-      note.textContent = 'Saved';
-      // The book's own Acquired line is the minimum across its files, so it can
-      // move when one file's date does. Refresh both it and the grid tile.
-      reload();
-      const fresh = await getJSON(`/api/books/${book.id}`);
-      const line = els.card.querySelector('.facts');
-      if (line && fresh) {
-        line.textContent = [year(fresh.publication_date), language(fresh.language),
-                            acquired(fresh.acquired_on)].filter(Boolean).join(' · ');
-      }
-    } catch {
-      note.textContent = 'Could not reach the server.';
-      note.classList.add('bad');
-    } finally {
-      input.disabled = false;
-    }
-  };
-
-  return el('label', { className: 'acq' },
-    el('span', { className: 'acq-label', textContent: type === 'epub' ? 'Ebook' : 'Audiobook' }),
-    input, note);
-}
-
 function editionButton(edition, type) {
   const detail =
     type === 'epub'
@@ -317,16 +266,198 @@ const rowNode = (row) =>
     ),
   );
 
-function correctionPanel(book) {
+// --- the edit form (admin) --------------------------------------------
+//
+// The plain way to change a book: the fields as they are stored, edited
+// directly. No model, no proposal, no accept step -- the form shows what is
+// stored and stores what the form shows. The correction panel below it is for
+// the other case, where you know a value is wrong but not what it should be.
+//
+// The raw epub/m4b rows are deliberately absent: they record what the file
+// itself said, and rewriting them would falsify the record rather than correct
+// the catalog. What belongs to each file and IS curated -- its acquisition
+// date -- is here.
+
+// Filled by loadFilters(), which the page already calls for the filter bars.
+let knownAuthors = [];
+let knownSeries = [];
+
+function field(label, control, hint) {
+  return el('label', { className: 'f' },
+    el('span', { className: 'f-label', textContent: label }),
+    control,
+    hint ? el('span', { className: 'f-hint', textContent: hint }) : null);
+}
+
+// A text input backed by a <datalist>: type freely, or pick something that
+// exists. Returns {input, resolve} where resolve() maps what was typed back to
+// an id when it names something we already have, and to a bare name when it
+// does not -- which is how the same box both picks and creates.
+function picker(value, options, listId) {
+  const input = el('input', { type: 'text', className: 'f-input', value: value || '' });
+  input.setAttribute('list', listId);
+  const resolve = () => {
+    const typed = input.value.trim();
+    if (!typed) return null;
+    const hit = options.find((o) => o.name.toLowerCase() === typed.toLowerCase());
+    return hit ? { id: hit.id } : { name: typed };
+  };
+  return { input, resolve };
+}
+
+function authorsField(book) {
+  const rows = el('div', { className: 'f-authors' });
+
+  const addRow = (name) => {
+    const p = picker(name, knownAuthors, 'people-list');
+    const remove = el('button', {
+      className: 'ghost f-remove', type: 'button', textContent: '×',
+      title: 'Remove this author',
+    });
+    const row = el('div', { className: 'f-author' }, p.input, remove);
+    row.resolve = p.resolve;
+    remove.onclick = () => row.remove();
+    rows.append(row);
+    return row;
+  };
+
+  (book.authors.length ? book.authors : ['']).forEach(addRow);
+
+  const add = el('button', {
+    className: 'ghost f-add', type: 'button', textContent: '+ Add author',
+  });
+  add.onclick = () => addRow('').querySelector('input').focus();
+
+  return {
+    node: el('div', {}, rows, add),
+    // Order is the order of the rows, which is the order they are credited in.
+    resolve: () => [...rows.children].map((r) => r.resolve()).filter(Boolean),
+  };
+}
+
+function editPanel(book, done) {
+  const title = el('input', { type: 'text', className: 'f-input', value: book.title });
+  const authors = authorsField(book);
+  const series = picker(book.series_name, knownSeries, 'series-list');
+  const position = el('input', {
+    type: 'number', className: 'f-input f-narrow', min: 0, step: 1,
+    value: book.series_position ?? '',
+  });
+  const published = el('input', {
+    type: 'date', className: 'f-input', value: book.publication_date || '',
+  });
+  const lang = el('input', { type: 'text', className: 'f-input f-narrow', value: book.language || '' });
+  lang.setAttribute('list', 'language-list');
+
+  // One per file, because that is how the date is stored and what it means:
+  // the "Acquired" line on the card is the earliest across a book's files, and
+  // for about one book in nine the ebook and the audiobook genuinely differ.
+  const assets = [
+    ...book.epubs.map((e) => ({ type: 'epub', label: 'Ebook', edition: e })),
+    ...book.m4bs.map((m) => ({ type: 'm4b', label: 'Audiobook', edition: m })),
+  ].map((a) => ({
+    ...a,
+    input: el('input', { type: 'date', className: 'f-input', value: a.edition.acquired_on || '' }),
+  }));
+
+  const msg = el('p', { className: 'correct-msg', hidden: true });
+  const say = (text, bad = false) => {
+    msg.textContent = text || '';
+    msg.hidden = !text;
+    msg.classList.toggle('bad', bad);
+  };
+
+  const save = el('button', { className: 'primary', type: 'button', textContent: 'Save' });
+  const cancel = el('button', { className: 'ghost', type: 'button', textContent: 'Cancel' });
+  cancel.onclick = done;
+
+  save.onclick = async () => {
+    if (!title.value.trim()) {
+      say('A book needs a title.', true);
+      return title.focus();
+    }
+    save.disabled = true;
+    cancel.disabled = true;
+    say('Saving…');
+    try {
+      const res = await api(`/api/admin/books/${book.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.value.trim(),
+          authors: authors.resolve(),
+          series: series.resolve(),
+          // Empty means empty: the form submits the whole record, so clearing a
+          // box clears the column. That is the one thing the correction path
+          // cannot express.
+          series_position: position.value === '' ? null : Number(position.value),
+          publication_date: published.value || null,
+          language: lang.value.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        say(err.detail || 'That did not save.', true);
+        save.disabled = false;
+        cancel.disabled = false;
+        return;
+      }
+
+      // Only the dates that actually moved, so an untouched form is one request.
+      for (const a of assets) {
+        if (!a.input.value || a.input.value === (a.edition.acquired_on || '')) continue;
+        await api(`/api/admin/assets/${a.type}/${a.edition.id}/acquired-on`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ acquired_on: a.input.value }),
+        });
+      }
+
+      await open(book.id);  // re-read: series, credits and the strip all move
+      reload();
+    } catch {
+      say('The server could not be reached.', true);
+      save.disabled = false;
+      cancel.disabled = false;
+    }
+  };
+
+  return el('div', { className: 'edit-form' },
+    field('Title', title),
+    field('Authors', authors.node),
+    el('div', { className: 'f-pair' },
+      field('Series', series.input),
+      field('Position', position, 'blank = unnumbered')),
+    el('div', { className: 'f-pair' },
+      field('Publication date', published),
+      field('Language', lang, 'e.g. en, pt-PT')),
+    ...assets.map((a) => field(`Acquired · ${a.label}`, a.input)),
+    msg,
+    el('div', { className: 'correct-actions' }, save, cancel));
+}
+
+// The two doors, which answer different questions: Edit when you know what the
+// record should say, "Something's wrong" when you only know it is wrong.
+function adminPanel(book) {
   const wrap = el('div', { className: 'correct' });
 
+  const editOpener = el('button', {
+    className: 'ghost', type: 'button', textContent: 'Edit',
+    title: 'Change what the catalog records about this book',
+  });
   const opener = el('button', {
     className: 'ghost correct-open', type: 'button',
     textContent: 'Something’s wrong…',
-    title: 'Tell the catalog what it got wrong about this book',
+    title: 'Say what is wrong and let the model work out the fix',
   });
-  const collapse = () => wrap.replaceChildren(opener);
+  const collapse = () =>
+    wrap.replaceChildren(el('div', { className: 'correct-actions' }, editOpener, opener));
   collapse();
+
+  editOpener.onclick = () => {
+    wrap.replaceChildren(editPanel(book, collapse));
+    wrap.querySelector('input').focus();
+  };
 
   opener.onclick = () => {
     const box = el('textarea', {
@@ -470,16 +601,6 @@ function renderDetail(book) {
   for (const m of book.m4bs) downloads.append(editionButton(m, 'm4b'));
   meta.append(downloads);
 
-  // Under the files they belong to, because the question they answer is "when
-  // did I get *this* one?" -- which is the question the facts line above,
-  // showing only the earliest, cannot answer.
-  if (isAdmin && (book.epubs.length || book.m4bs.length)) {
-    meta.append(el('div', { className: 'acquired' },
-      el('span', { className: 'acquired-head', textContent: 'Acquired' }),
-      ...book.epubs.map((e) => acquiredField(e, 'epub', book)),
-      ...book.m4bs.map((m) => acquiredField(m, 'm4b', book))));
-  }
-
   const card = el('div', {}, close, el('div', { className: 'detail-top' },
     el('div', { className: 'detail-cover' }, art), meta));
 
@@ -491,7 +612,7 @@ function renderDetail(book) {
 
   // Last, and below the description: it is the rarest thing anyone does here,
   // and it should not sit between a reader and the book.
-  if (isAdmin) card.append(correctionPanel(book));
+  if (isAdmin) card.append(adminPanel(book));
 
   if (book.siblings.length > 1) {
     const strip = el('div', { className: 'strip' });
@@ -549,6 +670,20 @@ async function loadFilters() {
   for (const l of languages) {
     els.language.append(el('option', { value: l.language, textContent: language(l.language) }));
   }
+
+  // The same two lists back the edit form's pickers. Small enough to hand the
+  // browser whole -- a few hundred names -- so picking costs no request.
+  knownAuthors = authors;
+  knownSeries = series;
+  document.getElementById('people-list').replaceChildren(
+    ...authors.map((a) => el('option', { value: a.name })),
+  );
+  document.getElementById('series-list').replaceChildren(
+    ...series.map((s) => el('option', { value: s.name })),
+  );
+  document.getElementById('language-list').replaceChildren(
+    ...languages.map((l) => el('option', { value: l.language })),
+  );
 }
 
 let debounce;

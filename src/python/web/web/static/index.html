@@ -48,6 +48,13 @@
     <article class="detail-card" role="dialog" aria-modal="true"></article>
   </div>
 
+  <!-- Backs the edit form's pickers; filled by loadFilters() from the same two
+       lists the filter bars use. Empty for everyone but an admin, who is the
+       only one the form is reachable for. -->
+  <datalist id="people-list"></datalist>
+  <datalist id="series-list"></datalist>
+  <datalist id="language-list"></datalist>
+
   <script src="/static/app.js"></script>
 </body>
 </html>
