@@ -278,6 +278,15 @@ Rules:
 - Change ONLY what the admin's correction is about. Every field you are not \
 correcting must be null. Restating a field you were not asked about risks \
 overwriting a good value with a worse one.
+- Some things shown on a book's page are NOT facts about the book and cannot \
+be corrected here: the acquisition date (when a FILE was obtained — recorded \
+separately for the ebook and the audiobook, which may genuinely differ) and \
+the narrator (a property of the audiobook edition). If the correction is about \
+one of those, return every field null and say in notes that it has to be \
+corrected on the file rather than the book. Never redirect such a correction \
+into a field you do have — an acquisition date is not a publication date, and \
+writing one into the other destroys a good value to answer a question that \
+was not asked.
 - The admin is authoritative on facts about their own library. Where they \
 state a fact, apply it exactly. Where they only say something is wrong \
 ("the publication date is wrong", "you got the author wrong"), use your own \

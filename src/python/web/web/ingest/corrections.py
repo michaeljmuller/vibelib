@@ -14,6 +14,22 @@ rows; correcting a book overwrites rows the whole library already reads, and the
 one field that cannot be recovered by asking again is the one that was right
 before. Hence `to_correction` emitting only the fields actually being changed,
 and `apply_correction` touching only the keys it is given.
+
+Two things the book's page displays are deliberately NOT correctable here,
+because they are not facts about the book:
+
+  acquisition date  recorded per asset. The page shows the earliest of them (see
+                    db.BOOK_JOINS), on the assumption that the ebook and the
+                    audiobook were bought together -- true for 89% of the books
+                    that have both, and false by a mean of 890 days for the rest.
+                    There is no single date to write back.
+  narrator          a property of the audio edition; two m4bs of one book can
+                    carry different ones.
+
+Both have to be corrected on the file. The prompt names them so that a
+correction about one is refused in words rather than quietly redirected into
+whichever book field looks closest -- writing an acquisition date into
+publication_date would destroy a good value to answer a question nobody asked.
 """
 
 import logging
