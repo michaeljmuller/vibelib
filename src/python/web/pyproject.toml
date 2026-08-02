@@ -15,6 +15,7 @@ dependencies = [
     "pydantic[email]>=2",  # EmailStr, so a typo'd invitation is rejected rather than un-redeemable
     "python-multipart>=0.0.9",  # what FastAPI parses an uploaded file out of
     "mutagen>=1.47",       # m4b tags and cover art (chapters come from ffprobe)
+    "pillow>=10.4",        # downscales an extracted cover into a grid thumbnail
     "anthropic>=0.60",     # resolving a new asset to a book -- see web/ingest
 ]
 

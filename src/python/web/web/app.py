@@ -125,6 +125,20 @@ def api_languages():
     return db.list_languages()
 
 
+@app.get("/covers/{asset_type}/thumb/{asset_id}")
+def cover_thumb(asset_type: AssetType, asset_id: int):
+    """What the grid asks for. Falls back to the original so that an asset the
+    backfill has not reached still draws -- slowly, but it draws."""
+    path = covers.find_thumb(asset_type, asset_id) or covers.find_cover(asset_type, asset_id)
+    if path is None:
+        raise HTTPException(404, "no cover")
+    return FileResponse(
+        path,
+        media_type=covers.media_type(path),
+        headers={"Cache-Control": "public, max-age=604800"},
+    )
+
+
 @app.get("/covers/{asset_type}/{asset_id}")
 def cover(asset_type: AssetType, asset_id: int):
     path = covers.find_cover(asset_type, asset_id)

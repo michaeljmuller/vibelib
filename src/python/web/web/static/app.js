@@ -100,7 +100,9 @@ function tile(book, onClick) {
     const img = el('img', {
       loading: 'lazy',
       alt: '',
-      src: `/covers/${book.cover.type}/${book.cover.id}`,
+      // The thumbnail, not the original: a tile is 140px wide and the originals
+      // run to 1200x1920. The detail card still shows the full image.
+      src: `/covers/${book.cover.type}/thumb/${book.cover.id}`,
     });
     // The cover file can disappear from disk under us; fall back rather than
     // leaving a broken image.
