@@ -229,6 +229,57 @@ function sanitize(html) {
   return doc.body.innerHTML;
 }
 
+// Admin-only, one per file. A date and nothing else, so there is nothing to
+// review and nothing to accept -- it saves when you change it. Per file rather
+// than per book because that is how it is stored: the card's "Acquired" line is
+// the earliest of a book's files, and for about one book in nine the ebook and
+// the audiobook carry genuinely different dates.
+function acquiredField(edition, type, book) {
+  const input = el('input', {
+    type: 'date', className: 'acq-input', value: edition.acquired_on || '',
+  });
+  const note = el('span', { className: 'acq-note' });
+
+  input.onchange = async () => {
+    if (!input.value) return; // cleared: there is no "unknown" to write
+    input.disabled = true;
+    note.textContent = 'Saving…';
+    note.classList.remove('bad');
+    try {
+      const res = await api(`/api/admin/assets/${type}/${edition.id}/acquired-on`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acquired_on: input.value }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        note.textContent = err.detail || 'Did not save.';
+        note.classList.add('bad');
+        return;
+      }
+      note.textContent = 'Saved';
+      // The book's own Acquired line is the minimum across its files, so it can
+      // move when one file's date does. Refresh both it and the grid tile.
+      reload();
+      const fresh = await getJSON(`/api/books/${book.id}`);
+      const line = els.card.querySelector('.facts');
+      if (line && fresh) {
+        line.textContent = [year(fresh.publication_date), language(fresh.language),
+                            acquired(fresh.acquired_on)].filter(Boolean).join(' · ');
+      }
+    } catch {
+      note.textContent = 'Could not reach the server.';
+      note.classList.add('bad');
+    } finally {
+      input.disabled = false;
+    }
+  };
+
+  return el('label', { className: 'acq' },
+    el('span', { className: 'acq-label', textContent: type === 'epub' ? 'Ebook' : 'Audiobook' }),
+    input, note);
+}
+
 function editionButton(edition, type) {
   const detail =
     type === 'epub'
@@ -418,6 +469,16 @@ function renderDetail(book) {
   for (const e of book.epubs) downloads.append(editionButton(e, 'epub'));
   for (const m of book.m4bs) downloads.append(editionButton(m, 'm4b'));
   meta.append(downloads);
+
+  // Under the files they belong to, because the question they answer is "when
+  // did I get *this* one?" -- which is the question the facts line above,
+  // showing only the earliest, cannot answer.
+  if (isAdmin && (book.epubs.length || book.m4bs.length)) {
+    meta.append(el('div', { className: 'acquired' },
+      el('span', { className: 'acquired-head', textContent: 'Acquired' }),
+      ...book.epubs.map((e) => acquiredField(e, 'epub', book)),
+      ...book.m4bs.map((m) => acquiredField(m, 'm4b', book))));
+  }
 
   const card = el('div', {}, close, el('div', { className: 'detail-top' },
     el('div', { className: 'detail-cover' }, art), meta));

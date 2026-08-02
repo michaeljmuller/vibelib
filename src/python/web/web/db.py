@@ -141,20 +141,27 @@ def get_book(book_id: int) -> dict[str, Any] | None:
         if book is None:
             return None
 
+        # acquired_on comes along per asset, not just as the book-level minimum
+        # above: it is recorded per file and it is the one curated fact about a
+        # file that an admin can correct from here, so the card needs to know
+        # which file carries which date.
         book["epubs"] = conn.execute(
             """SELECT e.id, e.s3_key, e.title, e.publisher, e.published_date,
-                      e.isbn, e.asin, e.description
+                      e.isbn, e.asin, e.description, ea.acquired_on
                FROM book_epubs be JOIN epubs e ON e.id = be.epub_id
+               LEFT JOIN epub_acquisitions ea ON ea.epub_id = e.id
                WHERE be.book_id = %s ORDER BY e.id""",
             (book_id,),
         ).fetchall()
 
         book["m4bs"] = conn.execute(
             """SELECT m.id, m.s3_key, m.title, m.duration_s, m.description,
+                      ma.acquired_on,
                       COALESCE(n.narrators, ARRAY[]::text[]) AS narrators,
                       (SELECT count(*) FROM m4b_chapters c WHERE c.m4b_id = m.id) AS chapters
                FROM book_m4bs bm
                JOIN m4bs m ON m.id = bm.m4b_id
+               LEFT JOIN m4b_acquisitions ma ON ma.m4b_id = m.id
                LEFT JOIN LATERAL (
                    SELECT array_agg(p.name ORDER BY mn.position) AS narrators
                    FROM m4b_narrators mn JOIN people p ON p.id = mn.narrator_id
