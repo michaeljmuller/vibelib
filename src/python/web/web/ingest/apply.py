@@ -195,12 +195,61 @@ def _resolve_book(
     return book_id
 
 
+def _credit_pen_name_only(conn: psycopg.Connection, author_ids: list[int]) -> list[int]:
+    """Drop a credit for someone who is only there as the person behind a pen
+    name also being credited.
+
+    Publisher metadata routinely lists both — "TheFirstDefier" and "Brink, JF"
+    as two dc:creator entries, "Shirtaloon" and "Travis Deverell" — and taken
+    at face value that credits one person twice under two names, which is how
+    every Defiance of the Fall volume and five He Who Fights with Monsters ended
+    up double-credited. The book is by the name on the cover; who that is, is
+    what author_pseudonyms is for.
+
+    Only ever drops someone whose pen name is credited on the same book, so a
+    genuine co-writing pair is untouched: Niven and Pournelle are two people and
+    neither is the other's pseudonym. Reciprocal links (A is B's pen name AND B
+    is A's) would otherwise cancel both credits out, so a filter that would
+    remove everyone is discarded — an uncredited book is worse than a
+    double-credited one, and it would be silent.
+    """
+    if len(author_ids) < 2:
+        return author_ids
+    rows = conn.execute(
+        """SELECT author_id FROM author_pseudonyms
+            WHERE pseudonym_id = ANY(%(ids)s) AND author_id = ANY(%(ids)s)""",
+        {"ids": author_ids},
+    ).fetchall()
+    behind = {r["author_id"] for r in rows}
+    kept = [a for a in author_ids if a not in behind]
+    return kept or author_ids
+
+
+def _apply_pseudonyms(conn: psycopg.Connection, proposal: dict[str, Any]) -> None:
+    """Record who is behind a pen name. Applied before the credits are written,
+    because a link the model has just told us about is exactly what
+    _credit_pen_name_only needs to act on the book that taught us it."""
+    for pseu in proposal.get("pseudonyms", []):
+        pseudonym_id = _resolve_person(conn, {"create": {"name": pseu["pseudonym_name"]}})
+        for real_name in pseu["real_person_names"]:
+            real_id = _resolve_person(conn, {"create": {"name": real_name}})
+            if real_id == pseudonym_id:
+                continue  # a name is not its own pen name
+            conn.execute(
+                """INSERT INTO author_pseudonyms (pseudonym_id, author_id)
+                   VALUES (%s, %s) ON CONFLICT DO NOTHING""",
+                (pseudonym_id, real_id),
+            )
+
+
 def apply_proposal(
     conn: psycopg.Connection, asset_type: str, asset_id: int, proposal: dict[str, Any]
 ) -> dict[str, Any]:
     """Apply all actions atomically; returns the resolved entity ids."""
     with conn.transaction():
         author_ids = [_resolve_person(conn, ref) for ref in proposal.get("authors", [])]
+        _apply_pseudonyms(conn, proposal)
+        author_ids = _credit_pen_name_only(conn, author_ids)
         book_id = _resolve_book(conn, proposal["book"], author_ids)
 
         join, fk = {
@@ -223,18 +272,6 @@ def apply_proposal(
                     """INSERT INTO m4b_narrators (m4b_id, narrator_id, position)
                        VALUES (%s, %s, %s) ON CONFLICT DO NOTHING""",
                     (asset_id, narrator_id, pos),
-                )
-
-        # Pseudonym links only ever arrive here via an approved review —
-        # the pipeline never auto-commits a proposal that contains any.
-        for pseu in proposal.get("pseudonyms", []):
-            pseudonym_id = _resolve_person(conn, {"create": {"name": pseu["pseudonym_name"]}})
-            for real_name in pseu["real_person_names"]:
-                real_id = _resolve_person(conn, {"create": {"name": real_name}})
-                conn.execute(
-                    """INSERT INTO author_pseudonyms (pseudonym_id, author_id)
-                       VALUES (%s, %s) ON CONFLICT DO NOTHING""",
-                    (pseudonym_id, real_id),
                 )
 
     return {"book_id": book_id, "author_ids": author_ids, "narrator_ids": narrator_ids}
