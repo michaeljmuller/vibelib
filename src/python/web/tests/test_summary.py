@@ -95,7 +95,7 @@ class TestRawRows:
         rows = raw_rows(_epub_meta())
         assert _find(rows, "Title")["text"] == "All the Weyrs of Pern"
         assert _find(rows, "Authors")["text"] == "McCaffrey, Anne"
-        assert _find(rows, "Date")["text"] == "2012 (edition)"
+        assert _find(rows, "Publication date")["text"] == "2012 (edition)"
         assert _find(rows, "File")["text"].endswith(".epub")
 
     def test_missing_authors_say_so(self):

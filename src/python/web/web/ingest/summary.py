@@ -113,7 +113,7 @@ def raw_rows(meta: dict[str, Any]) -> list[dict[str, str]]:
         pos = meta.get("series_position")
         rows.append(_row("Series", f"{series} #{pos}" if pos is not None else series))
         if meta.get("published_date"):
-            rows.append(_row("Date", f"{meta['published_date']} (edition)"))
+            rows.append(_row("Publication date", f"{meta['published_date']} (edition)"))
         if meta.get("language"):
             rows.append(_row("Language", meta["language"]))
     else:
@@ -122,7 +122,10 @@ def raw_rows(meta: dict[str, Any]) -> list[dict[str, str]]:
         if meta.get("album"):
             rows.append(_row("Album", meta["album"]))
         if meta.get("date"):
-            rows.append(_row("Date", f"{meta['date']} (edition)"))
+            # The ©day atom: when this *recording* was released. Easy to mistake
+            # for when it was bought -- they coincide for a new release picked up
+            # on release day, and are years apart for anything off the backlist.
+            rows.append(_row("Publication date", f"{meta['date']} (edition)"))
     rows.append(_row("File", meta.get("s3_key") or "?"))
     return rows
 

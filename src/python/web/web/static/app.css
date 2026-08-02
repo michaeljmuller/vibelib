@@ -556,7 +556,9 @@ button:disabled { opacity: .45; cursor: default; }
 .col-thumb .thumb { width: 80px; border-radius: 4px; display: block; }
 
 .row { display: flex; gap: 10px; padding: 3px 0; font-size: 13px; }
-.row-label { flex: 0 0 88px; color: var(--muted); }
+/* Wide enough for the longest labels either column produces ("Publication date",
+   "Reassign series") without wrapping them onto a second line. */
+.row-label { flex: 0 0 108px; color: var(--muted); }
 .row-value { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .verb {
   margin-right: 6px;
