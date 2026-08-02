@@ -1,7 +1,13 @@
 """Write the thumbnails that are missing for covers already on disk.
 
-New covers get one at ingest (see covers.save), so this is not part of the
-normal path -- it is the repair for the cases that leave a cover without one:
+The batch driver only; covers.py owns what a thumbnail is and how one is made,
+and this walks the tree calling covers.write_thumb. Kept out of covers.py
+because that module is imported on every request path and this one is a shell
+command with logging and argument handling.
+
+New covers get a thumbnail at ingest (see covers.save), so this is not part of
+the normal path -- it is the repair for the cases that leave a cover without
+one:
 
   * an ingest where thumbnailing failed (unreadable image, full disk); the
     cover still serves, at full size, until this is run

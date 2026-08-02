@@ -14,4 +14,4 @@ cd "$(dirname "$0")/../src/docker"
 # --no-deps: this walks the covers mount and touches neither the database nor
 # the bucket, so there is no healthy db to wait on.
 exec docker compose run --rm --no-deps --build \
-  --entrypoint python web -m web.backfill_thumbs "$@"
+  --entrypoint python web -m web.thumbs "$@"

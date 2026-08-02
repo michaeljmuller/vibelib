@@ -97,8 +97,8 @@ def save(asset_type: str, asset_id: int, data: bytes | None) -> bool:
 
 
 def write_thumb(asset_type: str, asset_id: int, data: bytes) -> bool:
-    """Downscale one cover into thumb/{asset_id}.jpg. Used by save() and by the
-    backfill; returns whether a thumbnail is now on disk."""
+    """Downscale one cover into thumb/{asset_id}.jpg. Used by save() and by
+    web.thumbs; returns whether a thumbnail is now on disk."""
     covers_dir = os.environ.get("WEB_COVERS_DIR")
     if not covers_dir:
         return False
