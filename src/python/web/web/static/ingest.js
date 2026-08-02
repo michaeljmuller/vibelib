@@ -47,6 +47,41 @@ const el = (tag, props = {}, ...children) => {
   return node;
 };
 
+// SVG needs its own namespace, so el() cannot build one -- document.createElement
+// would make an unknown HTML element that renders as nothing.
+const svgEl = (tag, attrs) => {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
+  return node;
+};
+
+const icon = (...paths) => {
+  const node = svgEl('svg', {
+    viewBox: '0 0 24 24', width: 13, height: 13,
+    fill: 'none', stroke: 'currentColor', 'stroke-width': 2,
+    'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+    // Decorative: the tag still says "epub" or "m4b" in words next to it.
+    'aria-hidden': 'true',
+  });
+  for (const d of paths) node.append(svgEl('path', { d }));
+  return node;
+};
+
+// Something to read and something to listen to, told apart at a glance. The
+// distinction matters most in list B, where the whole question about a row is
+// often "which half of this book am I looking at?".
+const ASSET_ICONS = {
+  epub: () => icon(
+    'M4 19.5A2.5 2.5 0 0 1 6.5 17H20',
+    'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z',
+  ),
+  m4b: () => icon(
+    'M11 5 6 9H2v6h4l5 4V5z',
+    'M19.07 4.93a10 10 0 0 1 0 14.14',
+    'M15.54 8.46a5 5 0 0 1 0 7.07',
+  ),
+};
+
 function say(text, bad = false) {
   els.msg.textContent = text;
   els.msg.classList.toggle('bad', bad);
@@ -193,7 +228,7 @@ function readyNode(entry) {
     'div',
     { className: 'ready-row' },
     el('span', { className: 'item-label', textContent: entry.title || entry.s3_key }),
-    el('span', { className: 'tag', textContent: entry.asset_type }),
+    el('span', { className: 'tag' }, ASSET_ICONS[entry.asset_type]?.(), entry.asset_type),
   );
 
   if (open && open.key === key) {
