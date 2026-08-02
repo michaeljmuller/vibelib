@@ -283,18 +283,45 @@ main { padding: 20px; }
 .dl:hover { filter: brightness(1.08); }
 .dl small { font-weight: 500; opacity: .78; font-size: 11px; }
 
+/* The description scrolls with the card, not inside itself. A box with its own
+   scrollbar inside a box with its own scrollbar means the wheel does different
+   things an inch apart, and the inner one hides its overflow behind a bar most
+   of a screen down. A long one is clamped and expands in place instead. */
 .desc {
   margin-top: 22px;
   padding-top: 20px;
   border-top: 1px solid var(--line);
   font-size: 14px;
   color: #c3c9d4;
-  max-height: 260px;
-  overflow-y: auto;
 }
 
 .desc p { margin: 0 0 10px; }
 .desc h3 { font-size: 14px; margin: 0 0 8px; }
+.desc.clamped {
+  position: relative;
+  max-height: 16em;
+  overflow: hidden;
+}
+/* Fades the cut line so it reads as "there is more" rather than as the end. */
+.desc.clamped::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 4em;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+  pointer-events: none;
+}
+.desc-more {
+  margin-top: 2px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.desc-more:hover { text-decoration: underline; }
 
 /* The edit form: the stored fields, edited directly. */
 .edit-form { display: flex; flex-direction: column; gap: 12px; }
@@ -341,7 +368,11 @@ main { padding: 20px; }
 .siblings { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
 .siblings h2 { margin: 0 0 12px; font-size: 13px; color: var(--muted); font-weight: 600; }
 
-.strip { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px; }
+/* Wraps rather than scrolling sideways. A horizontal strip put most of a long
+   series off-screen behind a third scrollbar, and clipped the outline marking
+   the book you are looking at -- which sits outside the tile, so an overflow
+   container cuts it off exactly when it is on the edge it scrolled to. */
+.strip { display: flex; flex-wrap: wrap; gap: 12px 12px; padding: 2px; }
 .strip .tile { flex: 0 0 92px; }
 .strip .tile .t { font-size: 11px; -webkit-line-clamp: 2; }
 .strip .tile.current .art { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -736,6 +767,6 @@ button:disabled { opacity: .45; cursor: default; }
   .detail-top { flex-direction: column; }
   .detail-cover { flex: 0 0 auto; width: 132px; }
   .detail-meta h1 { font-size: 20px; padding-right: 34px; }
-  .desc { max-height: none; }
+  .desc.clamped { max-height: 12em; }
   .downloads .dl { flex: 1 1 100%; }
 }

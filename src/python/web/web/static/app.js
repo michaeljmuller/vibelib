@@ -44,6 +44,9 @@ const getJSON = async (path) => (await api(path)).json();
 // behind this checks it server-side.
 let isAdmin = false;
 
+// A description whose height has not been measured yet; see renderDetail.
+let pendingClamp = null;
+
 // --- formatting -------------------------------------------------------
 
 const LANGUAGES = {
@@ -474,9 +477,13 @@ function renderDetail(book) {
     el('div', { className: 'detail-cover' }, art), meta));
 
   if (book.description) {
-    const desc = el('div', { className: 'desc' });
+    const desc = el('div', { className: 'desc clamped' });
     desc.innerHTML = sanitize(book.description);
     card.append(desc);
+    // Whether it needs the toggle at all can only be measured once it is in the
+    // document and laid out, so the button is added after the card is placed --
+    // see below. Most descriptions are a paragraph and get no button.
+    pendingClamp = desc;
   }
 
   // Last, and below the description: it is the rarest thing anyone does here,
@@ -501,14 +508,22 @@ function renderDetail(book) {
   els.detail.hidden = false;
   close.focus();
 
-  // A book late in a long series would otherwise sit off the right edge. Scroll
-  // the strip itself rather than using scrollIntoView, which on a short screen
-  // also scrolls the card and pushes the title and cover out of view.
-  const current = els.card.querySelector('.strip .current');
-  if (current) {
-    const strip = current.parentElement;
-    strip.scrollLeft =
-      current.offsetLeft - (strip.clientWidth - current.offsetWidth) / 2;
+  // Only now is there a layout to measure. A description that fits its clamp
+  // needs no toggle and keeps the class off, so nothing about a short one
+  // changes; a long one gets the button and the fade.
+  if (pendingClamp) {
+    const desc = pendingClamp;
+    pendingClamp = null;
+    if (desc.scrollHeight <= desc.clientHeight + 1) {
+      desc.classList.remove('clamped');
+    } else {
+      const more = el('button', { className: 'desc-more', type: 'button', textContent: 'More…' });
+      more.onclick = () => {
+        const open = desc.classList.toggle('clamped');
+        more.textContent = open ? 'More…' : 'Less';
+      };
+      desc.after(more);
+    }
   }
 }
 
