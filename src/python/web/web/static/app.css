@@ -358,9 +358,10 @@ main { padding: 20px; }
 .f-remove:hover:enabled { color: #e06c75; border-color: #e06c75; }
 .f-add { align-self: flex-start; margin-top: 6px; font-size: 12px; }
 
-/* Admin-only, at the foot of the detail card: collapsed to one quiet button
-   until it is opened. */
-.admin { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
+/* Sits in the downloads row, deliberately quieter than the download buttons --
+   same height so the row lines up, but outlined rather than filled. */
+.edit-open { height: auto; align-self: stretch; padding: 0 14px; }
+.edit-slot:not(:empty) { margin-top: 14px; }
 .form-actions { display: flex; gap: 8px; }
 .form-msg { margin: 0; color: var(--muted); font-size: 13px; }
 .form-msg.bad { color: #e06c75; }

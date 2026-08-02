@@ -410,19 +410,25 @@ function editPanel(book, done) {
 }
 
 // Admin-only: the one way to change what the catalog records about a book.
-function adminPanel(book) {
-  const wrap = el('div', { className: 'admin' });
+// The button sits with the downloads, because it is the same kind of thing --
+// something you do to this book -- and it was not worth a titled section and a
+// rule of its own. The form opens directly beneath them, so what you clicked
+// and what it did stay next to each other.
+function editButton(book, slot) {
   const opener = el('button', {
-    className: 'ghost', type: 'button', textContent: 'Edit',
+    className: 'ghost edit-open', type: 'button', textContent: 'Edit',
     title: 'Change what the catalog records about this book',
   });
-  const collapse = () => wrap.replaceChildren(opener);
-  collapse();
   opener.onclick = () => {
-    wrap.replaceChildren(editPanel(book, collapse));
-    wrap.querySelector('input').focus();
+    opener.disabled = true;
+    slot.replaceChildren(editPanel(book, () => {
+      slot.replaceChildren();
+      opener.disabled = false;
+      opener.focus();
+    }));
+    slot.querySelector('input').focus();
   };
-  return wrap;
+  return opener;
 }
 
 
@@ -473,6 +479,14 @@ function renderDetail(book) {
   for (const m of book.m4bs) downloads.append(editionButton(m, 'm4b'));
   meta.append(downloads);
 
+  // Empty until Edit is clicked, and empty again when it is closed: an admin
+  // control that costs nothing when unused.
+  if (isAdmin) {
+    const slot = el('div', { className: 'edit-slot' });
+    downloads.append(editButton(book, slot));
+    meta.append(slot);
+  }
+
   const card = el('div', {}, close, el('div', { className: 'detail-top' },
     el('div', { className: 'detail-cover' }, art), meta));
 
@@ -485,10 +499,6 @@ function renderDetail(book) {
     // see below. Most descriptions are a paragraph and get no button.
     pendingClamp = desc;
   }
-
-  // Last, and below the description: it is the rarest thing anyone does here,
-  // and it should not sit between a reader and the book.
-  if (isAdmin) card.append(adminPanel(book));
 
   if (book.siblings.length > 1) {
     const strip = el('div', { className: 'strip' });
