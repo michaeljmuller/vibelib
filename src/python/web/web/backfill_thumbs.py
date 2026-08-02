@@ -1,13 +1,20 @@
-"""Generate the missing grid thumbnails for covers already on disk.
+"""Write the thumbnails that are missing for covers already on disk.
 
-New covers get one at ingest (see covers.save); this is the one-off for
-everything that came before. Idempotent and resumable -- it skips any asset
-that already has a thumbnail, so re-running it after an interruption costs a
-directory scan and nothing else. Originals are opened read-only and never
-written.
+New covers get one at ingest (see covers.save), so this is not part of the
+normal path -- it is the repair for the cases that leave a cover without one:
+
+  * an ingest where thumbnailing failed (unreadable image, full disk); the
+    cover still serves, at full size, until this is run
+  * a change to covers.THUMB_EDGE, which makes every existing thumbnail the
+    wrong size -- that is what --force is for
+  * the initial run against a library ingested before thumbnails existed
+
+Idempotent and resumable: it skips any asset that already has a thumbnail, so
+re-running after an interruption costs a directory scan and nothing else.
+Originals are opened read-only and never written.
 
     util/thumbs.sh          fill in what is missing
-    util/thumbs.sh --force  rebuild every thumbnail (after changing THUMB_EDGE)
+    util/thumbs.sh --force  rebuild every thumbnail
 """
 
 import logging

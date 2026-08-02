@@ -38,9 +38,11 @@ def find_cover(asset_type: str, asset_id: int) -> Path | None:
 
 
 def find_thumb(asset_type: str, asset_id: int) -> Path | None:
-    """The downscaled copy, or None if this asset predates thumbnailing and the
-    backfill (util/thumbs.sh) has not reached it yet. Callers fall back to the
-    original, so a missing thumbnail is slow rather than broken."""
+    """The downscaled copy, or None if there is not one: thumbnailing is allowed
+    to fail without failing the ingest, so an unreadable image or a full disk
+    leaves a cover with no thumbnail. util/thumbs.sh fills those in. Callers
+    fall back to the original, which makes a missing thumbnail slow, not
+    broken."""
     covers_dir = os.environ.get("WEB_COVERS_DIR")
     if not covers_dir or asset_type not in ("epub", "m4b"):
         return None

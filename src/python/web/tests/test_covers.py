@@ -80,7 +80,9 @@ def test_discard_takes_the_thumbnail_with_it(covers_dir):
     assert not (covers_dir / "epub" / "thumb" / "4.jpg").exists()
 
 
-def test_find_thumb_is_none_before_the_backfill(covers_dir):
+def test_a_cover_with_no_thumbnail_is_still_found(covers_dir):
+    # What the /covers/{type}/thumb/{id} fallback stands on: the two lookups are
+    # independent, so a cover whose thumbnail was never written still resolves.
     (covers_dir / "epub").mkdir(parents=True)
     (covers_dir / "epub" / "5.jpg").write_bytes(jpeg())
     assert covers.find_thumb("epub", 5) is None

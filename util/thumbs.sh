@@ -1,6 +1,9 @@
 #!/bin/bash
-# Build the grid thumbnails for covers that predate thumbnailing. One-off after
-# deploying that change; new covers get one at ingest.
+# Write the thumbnails that are missing for covers already on disk. New covers
+# get one at ingest, so this is the repair tool, not part of the normal path:
+# run it when an ingest failed to thumbnail (that cover serves full-size until
+# you do), and with --force after changing covers.THUMB_EDGE.
+#
 #   util/thumbs.sh          fill in what is missing (safe to re-run)
 #   util/thumbs.sh --force  rebuild every thumbnail
 #

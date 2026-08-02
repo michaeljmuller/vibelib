@@ -127,15 +127,25 @@ def api_languages():
 
 @app.get("/covers/{asset_type}/thumb/{asset_id}")
 def cover_thumb(asset_type: AssetType, asset_id: int):
-    """What the grid asks for. Falls back to the original so that an asset the
-    backfill has not reached still draws -- slowly, but it draws."""
-    path = covers.find_thumb(asset_type, asset_id) or covers.find_cover(asset_type, asset_id)
+    """Every cover the UI draws, at the size it draws it. Serves the original
+    when an asset has no thumbnail -- thumbnailing is allowed to fail without
+    failing the ingest (see covers.save), so this is what keeps such a book
+    showing its real cover rather than the placeholder tile."""
+    thumb = covers.find_thumb(asset_type, asset_id)
+    path = thumb or covers.find_cover(asset_type, asset_id)
     if path is None:
         raise HTTPException(404, "no cover")
+    # A thumbnail is immutable for a given asset id, so it keeps the long life.
+    # The fallback does not: it is a stand-in for a file that may exist an hour
+    # from now, and it is the full-size cover. Handing it out for a week would
+    # pin megabytes of oversized images in the browser cache of anyone who
+    # happened to visit before util/thumbs.sh ran, long after the thumbnails
+    # were there to serve.
+    max_age = 604800 if thumb else 3600
     return FileResponse(
         path,
         media_type=covers.media_type(path),
-        headers={"Cache-Control": "public, max-age=604800"},
+        headers={"Cache-Control": f"public, max-age={max_age}"},
     )
 
 
