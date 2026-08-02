@@ -237,7 +237,10 @@ function editionButton(edition, type) {
 function renderDetail(book) {
   const art = el('div', { className: 'art' });
   if (book.cover) {
-    art.append(el('img', { alt: '', src: `/covers/${book.cover.type}/${book.cover.id}` }));
+    // Also the thumbnail: .detail-cover is 180px wide (132 on a phone), so the
+    // 400px copy is oversized for it already -- and it is the file the grid has
+    // just cached, which is why the card's cover appears the moment it opens.
+    art.append(el('img', { alt: '', src: `/covers/${book.cover.type}/thumb/${book.cover.id}` }));
   } else {
     art.append(fallback(book));
   }

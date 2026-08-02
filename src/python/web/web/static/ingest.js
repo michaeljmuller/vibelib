@@ -354,7 +354,7 @@ function cardNode(state) {
       side.cover
         ? el('div', { className: 'col-thumb' },
             el('img', { className: 'thumb', alt: '',
-                        src: `/covers/${side.cover.type}/${side.cover.id}` }))
+                        src: `/covers/${side.cover.type}/thumb/${side.cover.id}` }))
         : null,
     ),
     card ? el('p', { className: 'why', textContent: `${confidenceText(card)} · ${card.reason}` }) : null,
