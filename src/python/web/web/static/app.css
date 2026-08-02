@@ -95,6 +95,17 @@ main { padding: 20px; }
   color: inherit;
   text-align: left;
   font: inherit;
+
+  /* Stack from the top. A button centres its own contents, and a grid item is
+     stretched to the tallest tile in its row, so a short tile used to sit half
+     a line lower than its neighbours -- covers included. Starting at the top is
+     the whole fix: every column is the same width and the cover has a fixed
+     aspect ratio, so covers in a row are the same height and line up on their
+     own. Below them each tile is free to be its own height, title as long as it
+     is and the author right underneath it. */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .tile .art {
@@ -160,9 +171,13 @@ main { padding: 20px; }
   font-size: 13px;
   font-weight: 500;
   line-height: 1.3;
+
+  /* A cap on the runaway title, not a layout measurement -- the tile sizes
+     itself to whatever title it has. Raising this or dropping it entirely
+     changes only how much of a long title is shown. */
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
 }
 
