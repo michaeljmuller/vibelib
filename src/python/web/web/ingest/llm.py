@@ -140,14 +140,6 @@ pseudonym is itself a person row. If you know the credited name is a pen name \
 of real people (e.g. Richard Bachman -> Stephen King; James S. A. Corey -> \
 Daniel Abraham + Ty Franck), additionally emit a pseudonym_proposal naming the \
 real people. Only propose pseudonym links you actually know; never guess.
-- Publisher metadata often credits a pen name AND the person behind it as two \
-separate creators ("TheFirstDefier" and "Brink, JF"; "Shirtaloon" and "Travis \
-Deverell"). That is ONE author, listed twice. Credit only the cover name and \
-put the other in a pseudonym_proposal — never emit both as authors, which \
-would credit one person twice under two names. Two genuinely different people \
-who wrote a book together (Niven and Pournelle, Preston and Child) are of \
-course both authors; the test is whether one name is the other's pen name, not \
-whether two names appear.
 - Series: infer membership from the series/album/title fields (audiobook \
 "album" often looks like "The Expanse, Book 3"). Positions are whole numbers \
 only. Interstitial works (novellas like "Edgedancer", positions like 1.5) get \

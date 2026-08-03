@@ -11,7 +11,7 @@ from typing import Any
 
 import psycopg
 
-from . import candidates
+from . import apply, candidates
 from .resolve import CLOSE_LOOK_CONFIDENCE
 
 
@@ -91,8 +91,22 @@ def proposal_rows(
             )
         rows.append(_row("Published", spec.get("publication_date") or "?"))
         rows.append(_row("Language", spec.get("language") or "?"))
-    for a in proposal.get("authors", []):
-        rows.append(_person_row("Author", a, names))
+    # A credit apply will drop is shown, not hidden: the model did propose it,
+    # and "why is this book not by both of them?" is a question best answered
+    # before accepting rather than afterwards. Same reason _series_rows renders
+    # a create that will really be a link.
+    dropped = set(names.get("dropped_authors") or [])
+    for i, a in enumerate(proposal.get("authors", [])):
+        row = _person_row("Author", a, names)
+        if i in dropped:
+            row = _row(
+                "Author",
+                row["text"],
+                verb="skip",
+                warning="a pen name of theirs is credited above — recorded as a "
+                        "pseudonym rather than crediting one person twice",
+            )
+        rows.append(row)
     for n in proposal.get("narrators", []):
         rows.append(_person_row("Narrator", n, names))
     for p in proposal.get("pseudonyms", []):
@@ -189,6 +203,9 @@ def link_names(conn: psycopg.Connection, proposal: dict[str, Any]) -> dict[str, 
     names: dict[str, Any] = {
         "books": {}, "series": {}, "people": {},
         "series_match": {}, "series_near": {},
+        # Asked of apply itself, so the card cannot disagree with what
+        # accepting does -- see apply.dropped_author_indexes.
+        "dropped_authors": sorted(apply.dropped_author_indexes(conn, proposal)),
     }
     for name in series_creates:
         # Same call apply._resolve_series makes, so the card cannot disagree

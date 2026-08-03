@@ -651,6 +651,8 @@ button:disabled { opacity: .45; cursor: default; }
 .verb.create { color: #98c379; }
 .verb.link { color: var(--accent); }
 .verb.update { color: #e5c07b; }
+/* An action the card is showing precisely because it will NOT happen. */
+.verb.skip { color: var(--muted); }
 .warn { display: block; margin-top: 2px; color: #e5c07b; font-size: 12px; }
 
 /* Sits in the Proposed column while the model call is out. */

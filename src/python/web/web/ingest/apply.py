@@ -11,6 +11,7 @@ from typing import Any
 import psycopg
 
 from .candidates import find_person_exact, find_series_exact
+from .normalize import norm_person
 from .normalize import sort_name as make_sort_name
 
 # A guessed year is usually close to the truth; a reissue is decades off. That
@@ -195,51 +196,73 @@ def _resolve_book(
     return book_id
 
 
-def _credit_pen_name_only(conn: psycopg.Connection, author_ids: list[int]) -> list[int]:
-    """Drop a credit for someone who is only there as the person behind a pen
-    name also being credited.
+def dropped_author_indexes(
+    conn: psycopg.Connection, proposal: dict[str, Any]
+) -> set[int]:
+    """Which entries of proposal['authors'] are a pen name's real person, with
+    that pen name credited on the same book — so they will not be credited
+    again under a second name.
 
-    Publisher metadata routinely lists both — "TheFirstDefier" and "Brink, JF"
-    as two dc:creator entries, "Shirtaloon" and "Travis Deverell" — and taken
-    at face value that credits one person twice under two names, which is how
-    every Defiance of the Fall volume and five He Who Fights with Monsters ended
-    up double-credited. The book is by the name on the cover; who that is, is
-    what author_pseudonyms is for.
+    Publisher metadata routinely lists both halves as separate dc:creator
+    entries ("TheFirstDefier" and "Brink, JF", "Shirtaloon" and "Travis
+    Deverell"), and taken at face value that credits one person twice. The book
+    is by the name on the cover; who that is, is what author_pseudonyms records.
 
-    Only ever drops someone whose pen name is credited on the same book, so a
-    genuine co-writing pair is untouched: Niven and Pournelle are two people and
-    neither is the other's pseudonym. Reciprocal links (A is B's pen name AND B
-    is A's) would otherwise cancel both credits out, so a filter that would
-    remove everyone is discarded — an uncredited book is worse than a
-    double-credited one, and it would be silent.
+    Returns indexes rather than ids so the review card can ask the same question
+    without resolving anything — and so the card and apply cannot disagree about
+    the answer, which is the point of them sharing this.
+
+    Deliberately narrow. Someone is only dropped when their pen name is credited
+    on the same book, so a genuine co-writing pair is untouched: Niven and
+    Pournelle are two people and neither is the other's pseudonym. A reciprocal
+    link (A is B's pen name AND B is A's, as nobody103 and Domagoj Kurmaić are
+    in the live data) would cancel both credits out, so a result that would drop
+    everyone is discarded — an uncredited book is worse than a double-credited
+    one, and it would be silent.
     """
-    if len(author_ids) < 2:
-        return author_ids
-    rows = conn.execute(
-        """SELECT author_id FROM author_pseudonyms
-            WHERE pseudonym_id = ANY(%(ids)s) AND author_id = ANY(%(ids)s)""",
-        {"ids": author_ids},
-    ).fetchall()
-    behind = {r["author_id"] for r in rows}
-    kept = [a for a in author_ids if a not in behind]
-    return kept or author_ids
+    authors = proposal.get("authors", [])
+    if len(authors) < 2:
+        return set()
 
+    # What each credit resolves to today, mirroring _resolve_person: an id when
+    # it names someone who exists, None when accepting would create them.
+    ids: list[int | None] = []
+    keys: list[str] = []
+    for ref in authors:
+        if "link" in ref:
+            ids.append(ref["link"])
+            keys.append(norm_person(ref.get("raw_name") or ""))
+        else:
+            name = ref["create"]["name"]
+            existing = find_person_exact(conn, name)
+            ids.append(existing["id"] if existing else None)
+            keys.append(norm_person(name))
 
-def _apply_pseudonyms(conn: psycopg.Connection, proposal: dict[str, Any]) -> None:
-    """Record who is behind a pen name. Applied before the credits are written,
-    because a link the model has just told us about is exactly what
-    _credit_pen_name_only needs to act on the book that taught us it."""
+    # Links already recorded, between two people credited here.
+    known = [i for i in ids if i is not None]
+    behind_ids: set[int] = set()
+    if len(known) >= 2:
+        rows = conn.execute(
+            """SELECT author_id FROM author_pseudonyms
+                WHERE pseudonym_id = ANY(%(ids)s) AND author_id = ANY(%(ids)s)""",
+            {"ids": known},
+        ).fetchall()
+        behind_ids = {r["author_id"] for r in rows}
+
+    # Plus the links this very proposal is about to record, which is what lets
+    # the book that first tells us about a pen name benefit from it immediately.
+    behind_keys: set[str] = set()
     for pseu in proposal.get("pseudonyms", []):
-        pseudonym_id = _resolve_person(conn, {"create": {"name": pseu["pseudonym_name"]}})
-        for real_name in pseu["real_person_names"]:
-            real_id = _resolve_person(conn, {"create": {"name": real_name}})
-            if real_id == pseudonym_id:
-                continue  # a name is not its own pen name
-            conn.execute(
-                """INSERT INTO author_pseudonyms (pseudonym_id, author_id)
-                   VALUES (%s, %s) ON CONFLICT DO NOTHING""",
-                (pseudonym_id, real_id),
-            )
+        if norm_person(pseu.get("pseudonym_name") or "") in keys:
+            behind_keys |= {norm_person(n) for n in pseu.get("real_person_names", [])}
+
+    dropped = {
+        i
+        for i in range(len(authors))
+        if (ids[i] is not None and ids[i] in behind_ids)
+        or (keys[i] and keys[i] in behind_keys)
+    }
+    return set() if len(dropped) >= len(authors) else dropped
 
 
 def apply_proposal(
@@ -247,9 +270,15 @@ def apply_proposal(
 ) -> dict[str, Any]:
     """Apply all actions atomically; returns the resolved entity ids."""
     with conn.transaction():
-        author_ids = [_resolve_person(conn, ref) for ref in proposal.get("authors", [])]
-        _apply_pseudonyms(conn, proposal)
-        author_ids = _credit_pen_name_only(conn, author_ids)
+        # The person behind a credited pen name still gets a row -- the
+        # pseudonym link below needs someone to point at -- they are just not
+        # credited as a second author of this book.
+        dropped = dropped_author_indexes(conn, proposal)
+        author_ids = [
+            _resolve_person(conn, ref)
+            for i, ref in enumerate(proposal.get("authors", []))
+            if i not in dropped
+        ]
         book_id = _resolve_book(conn, proposal["book"], author_ids)
 
         join, fk = {
@@ -272,6 +301,18 @@ def apply_proposal(
                     """INSERT INTO m4b_narrators (m4b_id, narrator_id, position)
                        VALUES (%s, %s, %s) ON CONFLICT DO NOTHING""",
                     (asset_id, narrator_id, pos),
+                )
+
+        for pseu in proposal.get("pseudonyms", []):
+            pseudonym_id = _resolve_person(conn, {"create": {"name": pseu["pseudonym_name"]}})
+            for real_name in pseu["real_person_names"]:
+                real_id = _resolve_person(conn, {"create": {"name": real_name}})
+                if real_id == pseudonym_id:
+                    continue  # a name is not its own pen name
+                conn.execute(
+                    """INSERT INTO author_pseudonyms (pseudonym_id, author_id)
+                       VALUES (%s, %s) ON CONFLICT DO NOTHING""",
+                    (pseudonym_id, real_id),
                 )
 
     return {"book_id": book_id, "author_ids": author_ids, "narrator_ids": narrator_ids}
