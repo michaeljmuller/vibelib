@@ -109,9 +109,12 @@ def proposal_rows(
         rows.append(row)
     for n in proposal.get("narrators", []):
         rows.append(_person_row("Narrator", n, names))
-    for p in proposal.get("pseudonyms", []):
-        reals = " + ".join(p.get("real_person_names", []))
-        rows.append(_row("Pseudonym", f"{p.get('pseudonym_name', '?')} → {reals}"))
+    # Resolved in link_names, because this is the one row whose meaning depends
+    # on what is already in the database: the same two names are a new link, a
+    # link that already exists, or two people about to be invented.
+    for pseu in names.get("pseudonyms") or []:
+        rows.append(_row("Pseudonym", pseu["text"], verb=pseu["verb"],
+                         warning=pseu["warning"]))
     return rows
 
 
@@ -161,6 +164,92 @@ def review_reason(proposal: dict[str, Any], confidence: float | None) -> str:
     return "nothing unusual; check it and accept"
 
 
+def _person_near(conn: psycopg.Connection, name: str) -> list[dict[str, Any]]:
+    """People close enough to `name` that creating it may be a split rather than
+    a new person. Same idea as _series_near, and the same advisory status."""
+    rows = conn.execute(
+        """SELECT id, name FROM people
+            WHERE similarity(lower(name), lower(%(n)s)) > %(th)s
+            ORDER BY similarity(lower(name), lower(%(n)s)) DESC LIMIT 3""",
+        {"n": name, "th": candidates.NAME_SIM_THRESHOLD},
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _resolve_person_for_display(
+    conn: psycopg.Connection, name: str
+) -> dict[str, Any]:
+    """How apply._resolve_person will really treat this name: link an existing
+    person, or create one. The pseudonym path never carries an id -- it resolves
+    by name alone -- so this is the only way the card can say which."""
+    existing = candidates.find_person_exact(conn, name)
+    if existing is not None:
+        return {"id": existing["id"], "text": f"#{existing['id']} {existing['name']}",
+                "new": False, "near": []}
+    return {"id": None, "text": f"“{name}” (new person)", "new": True,
+            "near": _person_near(conn, name)}
+
+
+def _pseudonym_rows(
+    conn: psycopg.Connection, proposal: dict[str, Any]
+) -> list[dict[str, str]]:
+    """One rendered row per proposed pen-name link, saying what accepting does.
+
+    Three things worth seeing before accepting, none of which the bare names
+    showed: whether either side is about to become a new person row (the
+    pseudonym path resolves by name only, so a spelling variant silently makes
+    a second Travis Deverell); whether the link is already recorded; and whether
+    it is already recorded the *other way round*, where adding this one leaves
+    the pair pointing at each other -- which is the state nobody103 and Domagoj
+    Kurmaić are in, and the reason apply refuses to uncredit a book.
+    """
+    out: list[dict[str, str]] = []
+    for pseu in proposal.get("pseudonyms", []):
+        pen = _resolve_person_for_display(conn, pseu.get("pseudonym_name") or "?")
+        reals = [
+            _resolve_person_for_display(conn, n)
+            for n in pseu.get("real_person_names", [])
+        ]
+        text = f"{pen['text']} → {' + '.join(r['text'] for r in reals)}"
+
+        warnings: list[str] = []
+        for side in (pen, *reals):
+            if side["near"]:
+                hits = ", ".join(f"#{n['id']} “{n['name']}”" for n in side["near"])
+                warnings.append(f"near-match: {hits} — a second row for the same person?")
+
+        existing_ids = [r["id"] for r in reals if r["id"] is not None]
+        forward = reverse = False
+        if pen["id"] is not None and existing_ids:
+            rows = conn.execute(
+                """SELECT pseudonym_id, author_id FROM author_pseudonyms
+                    WHERE (pseudonym_id = %(pen)s AND author_id = ANY(%(reals)s))
+                       OR (author_id = %(pen)s AND pseudonym_id = ANY(%(reals)s))""",
+                {"pen": pen["id"], "reals": existing_ids},
+            ).fetchall()
+            forward = any(r["pseudonym_id"] == pen["id"] for r in rows)
+            reverse = any(r["author_id"] == pen["id"] for r in rows)
+        # Nothing is written when the link is already there, whichever else is
+        # true -- the insert is ON CONFLICT DO NOTHING.
+        if forward:
+            verb = "skip"
+            warnings.insert(
+                0,
+                "already recorded in both directions — the pair point at each other"
+                if reverse
+                else "already recorded; nothing to add",
+            )
+        else:
+            verb = "create" if any(s["new"] for s in (pen, *reals)) else "link"
+            if reverse:
+                warnings.append(
+                    "already recorded the other way round — accepting adds the "
+                    "mirror row, leaving the two pointing at each other"
+                )
+        out.append({"text": text, "verb": verb, "warning": "  ".join(warnings)})
+    return out
+
+
 def _series_near(conn: psycopg.Connection, name: str) -> list[dict[str, Any]]:
     """Existing series close enough to `name` that creating it would probably
     be a split rather than a genuinely new series. Advisory only."""
@@ -206,6 +295,7 @@ def link_names(conn: psycopg.Connection, proposal: dict[str, Any]) -> dict[str, 
         # Asked of apply itself, so the card cannot disagree with what
         # accepting does -- see apply.dropped_author_indexes.
         "dropped_authors": sorted(apply.dropped_author_indexes(conn, proposal)),
+        "pseudonyms": _pseudonym_rows(conn, proposal),
     }
     for name in series_creates:
         # Same call apply._resolve_series makes, so the card cannot disagree

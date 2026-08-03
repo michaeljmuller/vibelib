@@ -148,13 +148,28 @@ class TestProposalRows:
         }
         assert _find(rows, "Position")["text"] == "11"
 
-    def test_pseudonym_row(self):
+    def test_pseudonym_row_comes_from_the_resolved_names(self):
+        # Rendered from link_names' resolution rather than the raw proposal:
+        # the same two names mean a new link, an existing one, or two people
+        # about to be invented, and only the database knows which.
         p = _create_proposal(
             pseudonyms=[{"pseudonym_name": "James S. A. Corey",
                          "real_person_names": ["Daniel Abraham", "Ty Franck"]}]
         )
-        row = _find(proposal_rows(p, {}), "Pseudonym")
-        assert row["text"] == "James S. A. Corey → Daniel Abraham + Ty Franck"
+        names = {"pseudonyms": [{
+            "text": "#9 James S. A. Corey → #4 Daniel Abraham + “Ty Franck” (new person)",
+            "verb": "create", "warning": "",
+        }]}
+        row = _find(proposal_rows(p, names), "Pseudonym")
+        assert row["verb"] == "create"
+        assert "new person" in row["text"]
+
+    def test_a_proposal_with_pseudonyms_shows_none_until_they_are_resolved(self):
+        p = _create_proposal(
+            pseudonyms=[{"pseudonym_name": "Richard Bachman",
+                         "real_person_names": ["Stephen King"]}]
+        )
+        assert not [r for r in proposal_rows(p, {}) if r["label"] == "Pseudonym"]
 
     def test_narrator_link_keeps_the_raw_name(self):
         p = _create_proposal(narrators=[{"link": 7, "raw_name": "Porter, Ray"}])

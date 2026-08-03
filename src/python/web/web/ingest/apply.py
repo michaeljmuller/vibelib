@@ -65,6 +65,54 @@ def _adopt_epub_publication_date(
     )
 
 
+def _sharpen_publication_date_from_m4b(
+    conn: psycopg.Connection, book_id: int, m4b_id: int
+) -> None:
+    """Let an audiobook's stated release date supply the day the book's date
+    lacks — but never move the year.
+
+    A book created from an m4b gets whatever the model knows, and when that is
+    only a year the convention is the YYYY-01-01 placeholder. So "Snake-Eater",
+    released 2025-12-01 and saying so in its own ©day atom, was recorded as
+    2025-01-01 with the model noting "exact date unknown". The file knew; the
+    prompt had told the model to distrust it, because raw date fields usually
+    are edition dates.
+
+    Deliberately narrower than the epub rule below, which may move the year: an
+    ebook's stated date is a fact about the work, while an audiobook's is a fact
+    about the recording, and for anything off the backlist those are years apart
+    (Old Man's War is a 2005 novel whose audiobook is dated 2007). Requiring the
+    years to already agree makes this a pure gain in precision inside a year
+    something else established — there is no judgment call left in it.
+    """
+    row = conn.execute(
+        """SELECT b.publication_date AS current, m.date AS raw,
+                  (SELECT count(*) FROM book_m4bs WHERE book_id = b.id) AS n_m4bs
+             FROM books b, m4bs m
+            WHERE b.id = %s AND m.id = %s""",
+        (book_id, m4b_id),
+    ).fetchone()
+    if row is None or row["n_m4bs"] != 1:
+        return
+
+    current = row["current"]
+    # Only a year-only placeholder has anything to gain; a real date is already
+    # better than a recording's, and no date at all leaves no year to agree with.
+    if current is None or (current.month, current.day) != (1, 1):
+        return
+
+    m = _ISO_DATE.match(row["raw"] or "")
+    if not m or m.group().endswith("-01-01"):
+        return  # junk, year-only, or no better than the placeholder we have
+    new = m.group()
+    if int(new[:4]) != current.year:
+        return  # a different year is a claim about the recording, not the work
+
+    conn.execute(
+        "UPDATE books SET publication_date = %s WHERE id = %s", (new, book_id)
+    )
+
+
 def _resolve_person(conn: psycopg.Connection, ref: dict[str, Any]) -> int:
     if "link" in ref:
         row = conn.execute(
@@ -291,6 +339,8 @@ def apply_proposal(
         )
         if asset_type == "epub":
             _adopt_epub_publication_date(conn, book_id, asset_id)
+        else:
+            _sharpen_publication_date_from_m4b(conn, book_id, asset_id)
 
         narrator_ids: list[int] = []
         if asset_type == "m4b":

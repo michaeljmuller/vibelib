@@ -96,3 +96,55 @@ def test_drift_is_allowed_up_to_the_limit():
     conn = FakeConn(date("2019-01-01"), "2025-05-02")   # 6 years: too far
     _adopt_epub_publication_date(conn, 1, 1)
     assert conn.updated_to is None
+
+
+# --- the m4b side ------------------------------------------------------------
+#
+# "Snake-Eater" arrived stating 2025-12-01 in its own ©day atom and was recorded
+# as 2025-01-01, because the model knew the year and the prompt tells it to
+# distrust raw date fields. Within a year already agreed on, the file is the
+# better source; across years it is talking about the recording, not the work.
+
+import datetime as _dt
+
+from web.ingest.apply import _sharpen_publication_date_from_m4b
+
+
+class _M4bConn(FakeConn):
+    def __init__(self, current, raw, n_m4bs=1):
+        super().__init__(current, raw, n_epubs=n_m4bs)
+        self.row = {"current": current, "raw": raw, "n_m4bs": n_m4bs}
+
+
+class TestSharpenFromM4b:
+    def test_adds_the_day_inside_an_agreed_year(self):
+        conn = _M4bConn(_dt.date(2025, 1, 1), "2025-12-01")
+        _sharpen_publication_date_from_m4b(conn, 1, 1)
+        assert conn.updated_to == "2025-12-01"
+
+    def test_refuses_to_move_the_year(self):
+        # A 2005 novel whose audiobook is dated 2007: the recording's date is
+        # not the work's, and the year we have is the better answer.
+        conn = _M4bConn(_dt.date(2005, 1, 1), "2007-10-02")
+        _sharpen_publication_date_from_m4b(conn, 1, 1)
+        assert conn.updated_to is None
+
+    def test_leaves_a_real_date_alone(self):
+        conn = _M4bConn(_dt.date(2025, 6, 14), "2025-12-01")
+        _sharpen_publication_date_from_m4b(conn, 1, 1)
+        assert conn.updated_to is None
+
+    def test_no_date_at_all_leaves_no_year_to_agree_with(self):
+        conn = _M4bConn(None, "2025-12-01")
+        _sharpen_publication_date_from_m4b(conn, 1, 1)
+        assert conn.updated_to is None
+
+    def test_a_year_only_file_date_adds_nothing(self):
+        conn = _M4bConn(_dt.date(2025, 1, 1), "2025")
+        _sharpen_publication_date_from_m4b(conn, 1, 1)
+        assert conn.updated_to is None
+
+    def test_only_the_book_s_first_audiobook_speaks(self):
+        conn = _M4bConn(_dt.date(2025, 1, 1), "2025-12-01", n_m4bs=2)
+        _sharpen_publication_date_from_m4b(conn, 1, 1)
+        assert conn.updated_to is None

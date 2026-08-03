@@ -42,10 +42,19 @@ class FakeConn:
     def execute(self, sql, params=None):
         if "author_pseudonyms" in sql:
             self.queried = True
-            ids = set(params["ids"])
-            return _Result(
-                [{"author_id": r} for p, r in self.links if p in ids and r in ids]
-            )
+            if "ids" in params:  # dropped_author_indexes: links among the credited
+                ids = set(params["ids"])
+                return _Result(
+                    [{"author_id": r} for p, r in self.links if p in ids and r in ids]
+                )
+            # _pseudonym_rows: links between this pen name and these real people,
+            # in either direction.
+            pen, reals = params["pen"], set(params["reals"])
+            return _Result([
+                {"pseudonym_id": p, "author_id": r}
+                for p, r in self.links
+                if (p == pen and r in reals) or (r == pen and p in reals)
+            ])
         if "FROM people" in sql:
             name = params["n"]
             hit = self.people.get(name)
@@ -142,3 +151,62 @@ class TestTheCardSaysSo:
         rows = [r for r in proposal_rows(proposal, {"dropped_authors": []})
                 if r["label"] == "Author"]
         assert all(r["verb"] == "link" for r in rows)
+
+
+class TestPseudonymRowsResolve:
+    """The card must say whether accepting links two people or invents them.
+
+    The pseudonym path in apply carries no ids -- it resolves by name alone --
+    so a spelling variant silently makes a second person. That is precisely
+    what the row now has to show.
+    """
+
+    def _rows(self, conn, pen, reals):
+        from web.ingest.summary import _pseudonym_rows
+        return _pseudonym_rows(
+            conn, {"pseudonyms": [{"pseudonym_name": pen, "real_person_names": reals}]}
+        )
+
+    def test_both_sides_known_reads_as_a_link(self):
+        conn = FakeConn(people={"Shirtaloon": SHIRTALOON, "Travis Deverell": DEVERELL})
+        row = self._rows(conn, "Shirtaloon", ["Travis Deverell"])[0]
+        assert row["verb"] == "link"
+        assert row["text"] == "#1 Shirtaloon → #2 Travis Deverell"
+
+    def test_an_unknown_name_is_flagged_as_a_new_person(self):
+        conn = FakeConn(people={"Shirtaloon": SHIRTALOON})
+        row = self._rows(conn, "Shirtaloon", ["Travis Deverel"])[0]
+        assert row["verb"] == "create"
+        assert "new person" in row["text"]
+
+    def test_an_existing_link_is_marked_as_nothing_to_add(self):
+        conn = FakeConn(
+            links=[(SHIRTALOON, DEVERELL)],
+            people={"Shirtaloon": SHIRTALOON, "Travis Deverell": DEVERELL},
+        )
+        row = self._rows(conn, "Shirtaloon", ["Travis Deverell"])[0]
+        assert row["verb"] == "skip"
+        assert "already recorded" in row["warning"]
+
+    def test_a_link_recorded_both_ways_writes_nothing(self):
+        # The live nobody103 / Domagoj Kurmaić state: reporting this as a link
+        # about to be made would be wrong twice over, since ON CONFLICT DO
+        # NOTHING means accepting writes no row at all.
+        conn = FakeConn(
+            links=[(SHIRTALOON, DEVERELL), (DEVERELL, SHIRTALOON)],
+            people={"Shirtaloon": SHIRTALOON, "Travis Deverell": DEVERELL},
+        )
+        row = self._rows(conn, "Shirtaloon", ["Travis Deverell"])[0]
+        assert row["verb"] == "skip"
+        assert "both directions" in row["warning"]
+
+    def test_a_reverse_link_is_called_out(self):
+        # Accepting would leave the pair pointing at each other, which is the
+        # state nobody103 and Domagoj Kurmaić are already in.
+        conn = FakeConn(
+            links=[(DEVERELL, SHIRTALOON)],
+            people={"Shirtaloon": SHIRTALOON, "Travis Deverell": DEVERELL},
+        )
+        row = self._rows(conn, "Shirtaloon", ["Travis Deverell"])[0]
+        assert "other way round" in row["warning"]
+        assert row["verb"] != "skip"  # it would still write a row
