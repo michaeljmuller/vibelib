@@ -1,0 +1,117 @@
+Acquisition dates from Amazon digital orders
+============================================
+
+This document describes how to correct the acquisition dates of epubs and m4bs
+from Amazon's Digital Orders page. It is for the agent (Claude) that does the
+work, and for the library owner, who saves the orders and approves the changes.
+The API that the tool calls is described in release-process.txt, under "API
+token".
+
+The process was first used in November 2026. It corrected 21 dates for orders
+from 2026.
+
+
+Why the dates are wrong
+-----------------------
+
+When a file is ingested, its acquisition date is the ingest date, unless
+something better is known. Books bought months before they reach the library
+then sort as new. The Amazon order date is the real acquisition date.
+
+The Amazon data export ("Request your data") has the same dates as CSV files,
+but it takes days to arrive. The page script below takes a few minutes. The
+older matcher for that export is in the tag cli-tooling-2026-07-21
+(src/python/resolver/resolver/acquisitions.py).
+
+
+The parts
+---------
+
+- util/amazon-digital-orders.js: a script that the library owner pastes into
+  the browser console on the Digital Orders page. It saves the order cards of
+  the selected year as amazon-digital-orders-<filter>.txt.
+- util/amazon-dates.sh: runs util/amazon_dates.py in a python:3.12-slim
+  container. It reads ADMIN_API_TOKEN from src/docker/.env and passes it to
+  the container as an environment variable.
+- data/amazon-dates/: copies of the order files, and the plans and reports.
+  It is gitignored.
+
+The agent does not use the browser for this. The library owner does not give
+the agent access to the Amazon account. The agent receives only the saved file.
+
+
+Procedure
+---------
+
+To save the orders, the library owner does the following:
+
+1. Sign in to amazon.com. Open Your Orders, then Digital Orders.
+2. Select one year in the time filter.
+3. Open the JavaScript console and paste util/amazon-digital-orders.js.
+4. When the console shows "[orders] done", give the path of the downloaded
+   file to the agent. If more years are necessary, repeat for each year.
+
+To match and apply, the agent does the following:
+
+1. Run the match step. It sends only GET requests:
+
+       util/amazon-dates.sh match ~/Downloads/amazon-digital-orders-*.txt
+
+2. Read the report (it is also in data/amazon-dates/plan-<time>.txt).
+3. Make sure that each "earlier" row names the correct book. Look for a wrong
+   volume of a series, and for a title that is similar but not the same.
+4. Do a short search by hand for each "missing" row before reporting it as
+   missing. The search can miss when the punctuation differs.
+5. Show the library owner the "earlier" rows and the missing books. Wait for
+   approval.
+6. Apply the plan:
+
+       util/amazon-dates.sh apply plan-<time>.json
+
+7. Make sure that the last line says "0 mismatches".
+
+
+How matching works
+------------------
+
+- Each order card becomes one row for each item. A Kindle Edition row maps to
+  an epub, and an Audiobook row maps to an m4b. Subscription charges and video
+  are left out.
+- The tool searches the API with the full title, the title before the first
+  colon, the title without "Book N", and each subtitle part. The candidate
+  with the most similar title is used. A shared author adds to the score.
+- If the order title has a book number and the book has a different
+  series_position, the candidate is rejected. Without this rule, "A Soldier's
+  Life Book 6" matched book 1.
+- Dates only move earlier. If the library date is earlier than the order, the
+  row is "keep". This happens for a re-purchase, for example a book bought in
+  2021 and bought again in 2026.
+- If one asset appears in more than one order, the earliest order is used.
+- The card date is the date that Amazon shows in the browser, in local time.
+  The older export matcher had to convert from UTC. This tool does not.
+
+Statuses in the report:
+
+- same: the library already has the order date.
+- earlier: apply sets the order date.
+- keep: the library date is earlier. Nothing changes.
+- duplicate: a later order of an asset that another row covers.
+- missing-epub, missing-m4b: the book exists, but not this format.
+- missing: no book matched. The owner bought it, but it is not in the library.
+
+
+Known limits
+------------
+
+- The order cards have no ASIN, so matching is by title only.
+- The page script depends on Amazon's page structure: the js-order-card class,
+  the data-csa-c-slot-id attribute and the "ORDER PLACED" label. If Amazon
+  changes these, the script saves nothing or saves encrypted text.
+- Amazon encrypts the order cards in the HTML and decrypts them in the browser.
+  For this reason, the script loads each page in a hidden frame and does not
+  fetch the HTML.
+- The browser console shows many errors from Amazon's ad scripts and from
+  browser extensions during a run. They do not affect the result.
+- Not verified yet: the cleaned-up page script in util/ was not run against
+  Amazon. The first version, which was nearly the same, was run in Safari in
+  November 2026.
