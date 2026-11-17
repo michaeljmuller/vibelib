@@ -92,6 +92,10 @@ class AcquiredOn(BaseModel):
     acquired_on: datetime.date
 
 
+class PublicationDate(BaseModel):
+    publication_date: datetime.date
+
+
 # --- the work ----------------------------------------------------------------
 
 
@@ -156,6 +160,28 @@ def api_update_book(book_id: int, edit: BookEdit):
         conn.commit()
     log.info("edited book %s", book_id)
     return {"book_id": book_id}
+
+
+@router.put("/books/{book_id}/publication-date")
+def api_set_publication_date(book_id: int, body: PublicationDate):
+    """The book's publication date, and nothing else about it.
+
+    The full edit above replaces the whole record, so a script that only means
+    to fix a date would have to read the book and send every other field back
+    unchanged -- and a mistake there clears credits. This changes one column, so
+    the API token can reach it (auth.TOKEN_SCOPE) without reaching the rest of
+    the book. It always sets a date; clearing one is the form's job.
+    """
+    with db.pool.connection() as conn:
+        row = conn.execute(
+            "UPDATE books SET publication_date = %s WHERE id = %s RETURNING id",
+            (body.publication_date, book_id),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "no such book")
+        conn.commit()
+    log.info("set book %s publication_date to %s", book_id, body.publication_date)
+    return {"publication_date": body.publication_date}
 
 
 @router.put("/assets/{asset_type}/{asset_id}/acquired-on")

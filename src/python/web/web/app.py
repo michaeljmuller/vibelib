@@ -29,6 +29,7 @@ async def lifespan(app: FastAPI):
     # Before anything is served: refuse to run in a configuration that would leave
     # the library open to the world.
     auth.check_dev_user()
+    auth.check_api_token()
     db.pool.open(wait=True, timeout=30)
     # And do not serve until the schema matches the code that is about to run
     # against it. A failure here is a failure to start, on purpose.

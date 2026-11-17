@@ -47,3 +47,22 @@ Migrations are mounted into the container from src/sql, not baked into the image
 so a schema-only change needs no rebuild -- but --build in step 5 is harmless and
 keeps the process one command.
 
+
+
+API token
+---------
+
+ADMIN_API_TOKEN in src/docker/.env lets a script correct dates without a Google
+sign-in. It is optional; when it is unset, the app refuses every token request.
+It reaches only four operations: search books, read one book, set the
+acquisition date of one epub or m4b, and set the publication date of one book.
+The list is TOKEN_SCOPE in
+src/python/web/web/auth.py. Every other request with the token gets a 403.
+
+To create or replace the token, generate a value, put it in .env, and restart
+the web service:
+
+    openssl rand -hex 32
+
+The app refuses to start with a token shorter than 32 characters. To revoke the
+token, remove the line or change the value, and restart.

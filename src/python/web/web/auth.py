@@ -8,8 +8,10 @@ authorization starts, not where it ends -- the callback takes the verified email
 Google returns and looks it up on the allowlist, and a miss is shown the door.
 """
 
+import hmac
 import logging
 import os
+import re
 from urllib.parse import quote
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
@@ -76,6 +78,62 @@ def check_dev_user() -> None:
     log.warning("AUTHENTICATION IS DISABLED. Every request is signed in as %s.", DEV_USER)
     log.warning("OAUTH_DEV_USER is set. This must never be set anywhere public.")
     log.warning("=" * 78)
+
+# --- the API token ------------------------------------------------------------
+#
+# Set ADMIN_API_TOKEN and a script can send `Authorization: Bearer <token>`
+# instead of signing in with Google. It exists so that dates can be corrected in
+# bulk (acquisition dates from purchase histories, publication dates the files
+# state), by a tool rather than by hand.
+#
+# It is not an admin login. It reaches only the operations in TOKEN_SCOPE: find a
+# book, read its files and their dates, set a file's acquisition date, and set a
+# book's publication date. Everything else is a 403 for a token request,
+# including any route added later, so a leaked token can at worst change dates.
+# It cannot add people to the allowlist,
+# relink or delete books, start an ingest, or download a book.
+#
+# A token request never reads or writes the session, so the token cannot be
+# turned into a browser login. Unset, token requests are refused outright.
+API_TOKEN = os.environ.get("ADMIN_API_TOKEN", "").strip() or None
+
+# A token is the whole credential, with no second factor and no expiry, so a
+# short one is refused at startup rather than accepted quietly.
+MIN_TOKEN_LENGTH = 32
+
+TOKEN_SCOPE = (
+    ("GET", re.compile(r"/api/books")),
+    ("GET", re.compile(r"/api/books/\d+")),
+    ("PUT", re.compile(r"/api/admin/assets/(epub|m4b)/\d+/acquired-on")),
+    ("PUT", re.compile(r"/api/admin/books/\d+/publication-date")),
+)
+
+# Who a token request is, as far as require_admin and the routes are concerned.
+# No id: nothing in TOKEN_SCOPE looks one up, and a route that did would be one
+# the token has no business reaching.
+TOKEN_USER = {"id": None, "email": "api-token", "name": "API token", "is_admin": True}
+
+
+def check_api_token() -> None:
+    """Called at startup, before the app serves anything."""
+    if API_TOKEN and len(API_TOKEN) < MIN_TOKEN_LENGTH:
+        raise RuntimeError(
+            f"ADMIN_API_TOKEN is {len(API_TOKEN)} characters; it must be at least "
+            f"{MIN_TOKEN_LENGTH}. Generate one with: openssl rand -hex 32"
+        )
+    if API_TOKEN:
+        log.info("ADMIN_API_TOKEN is set: token requests may set acquisition and publication dates.")
+
+
+def token_allows(method: str, path: str) -> bool:
+    return any(method == m and pattern.fullmatch(path) for m, pattern in TOKEN_SCOPE)
+
+
+def _bearer(request: Request) -> str | None:
+    header = request.headers.get("authorization", "")
+    scheme, _, value = header.partition(" ")
+    return value.strip() if scheme.lower() == "bearer" else None
+
 
 oauth = OAuth()
 oauth.register(
@@ -183,6 +241,10 @@ class RequireLogin(BaseHTTPMiddleware):
         if path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES):
             return await call_next(request)
 
+        token = _bearer(request)
+        if token is not None:
+            return await self._token_request(request, call_next, token, path)
+
         email = request.session.get("email")
 
         if email is None and DEV_USER:
@@ -207,6 +269,17 @@ class RequireLogin(BaseHTTPMiddleware):
         request.state.user = user
         request.session["email"] = user["email"]
         request.session["name"] = user["name"] or user["email"]
+        return await call_next(request)
+
+    async def _token_request(self, request: Request, call_next, token: str, path: str):
+        # A request that names a token is judged by the token alone, never by a
+        # cookie it also carries: a bad token is a 401 even from a signed-in browser.
+        if API_TOKEN is None or not hmac.compare_digest(token.encode(), API_TOKEN.encode()):
+            return JSONResponse({"detail": "invalid token"}, status_code=401)
+        if not token_allows(request.method, path):
+            log.warning("API token refused for %s %s: outside its scope", request.method, path)
+            return JSONResponse({"detail": "outside the token's scope"}, status_code=403)
+        request.state.user = TOKEN_USER
         return await call_next(request)
 
     def _turn_away(self, request: Request, path: str):
