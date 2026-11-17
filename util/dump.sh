@@ -15,7 +15,9 @@
 # What is worth protecting here is not the books -- those are in the object store,
 # and could be re-ingested. It is the curation: the resolved authors, the pseudonym
 # links, the series ordering, the acquisition dates mined out of the old library.
-# That work exists nowhere else. Run this on a schedule.
+# That work exists nowhere else. The backup service dumps it nightly to object
+# storage (docs/backup.txt); this script is for a copy on this host, such as
+# the one taken before a release.
 #
 # Dumps land in data/backups, beside the older ones, rather than in the home
 # directory: they belong to the project, and data/ is gitignored so they never risk

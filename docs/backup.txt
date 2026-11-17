@@ -1,0 +1,134 @@
+Backup and recovery
+===================
+
+This document describes the nightly backup of the library database, how to set
+it up on the server, and how to restore a dump. The release steps are in
+release-process.txt.
+
+What is worth keeping is the curation: the resolved authors, the pseudonym
+links, the series order and the acquisition dates. The book files are in the
+book bucket and can be added again. The curation exists only in the database.
+
+
+How it works
+------------
+
+The backup service in src/docker/docker-compose.yml runs pg_dump every night at
+RUN_AT (03:30 by default, in TZ). It uploads the dump to object storage as
+vibelib-<UTC timestamp>.dump. After an upload succeeds, it deletes the oldest
+dumps so that BACKUP_RETAIN of them (30 by default) remain. It only deletes
+keys that match that name, so other objects in the bucket are safe.
+
+A failed backup deletes nothing, so a string of failures never removes the
+good dumps.
+
+The dump is in the pg_dump custom format, the same format that util/dump.sh
+writes. util/dump.sh still works for a copy on the host, for example before a
+release.
+
+The image is built on postgres:16, so pg_dump has the same version as the
+server. When the db service moves to a new major version, the FROM line in
+src/docker/backup/Dockerfile must move with it.
+
+The dumps are not encrypted on the host. The database holds book metadata and
+the names and email addresses of the people invited to the library. Nothing
+in it is a password or a key. Encryption would add a passphrase whose loss
+makes every dump unreadable. The bucket is private.
+
+
+Settings
+--------
+
+The settings are in src/docker/.env.
+
+    OBJECT_STORE_BACKUP_BUCKET_NAME   muller-vibelib-backups. Required.
+    RUN_AT                            HH:MM, or "never" to turn it off
+    BACKUP_RETAIN                     number of dumps to keep (30)
+
+The backup bucket is in the same Hetzner project as the book bucket, so the
+service uses the book bucket's endpoint, region and credentials (the other
+OBJECT_STORE_* settings). A Hetzner credential covers every bucket in its
+project.
+
+If OBJECT_STORE_BACKUP_BUCKET_NAME is not set, the service logs a warning and
+takes no backup.
+
+On a development machine, set RUN_AT=never. Otherwise a development copy of
+the database goes into the production bucket every night, and retention then
+deletes production dumps to make room for it.
+
+
+Setting it up on the server
+---------------------------
+
+The release manager does the following once:
+
+1. Add OBJECT_STORE_BACKUP_BUCKET_NAME=muller-vibelib-backups to
+   src/docker/.env.
+
+2. Check the bucket and the credentials. This writes one small object, lists
+   the bucket, reads the object back and deletes it, which tests every
+   permission that a backup needs:
+
+       cd ~/sites/vibelib/src/docker
+       docker compose run --rm backup python3 -m backup s3-test
+
+3. Start the service and take the first backup:
+
+       docker compose up -d --build backup
+       docker compose run --rm backup python3 -m backup now
+
+4. Check that the log shows the schedule:
+
+       docker compose logs backup
+
+The log line "backing up nightly at 03:30" shows that the service is
+running. Each night adds an "uploaded vibelib-..." line.
+
+
+Checking the backups
+--------------------
+
+    docker compose run --rm backup python3 -m backup list
+    docker compose logs backup | grep -E 'uploaded|FAILED'
+
+A failure is written to the log as "backup FAILED", with one line of advice.
+Nothing else reports it. Check the list from time to time: the newest dump
+must be from last night.
+
+
+Restoring a dump
+----------------
+
+1. Download the dump to data/backups:
+
+       cd ~/sites/vibelib/src/docker
+       docker compose run --rm backup python3 -m backup list
+       docker compose run --rm backup python3 -m backup fetch vibelib-<stamp>.dump
+
+2. Load it into the running database. This replaces the current contents:
+
+       cd ~/sites/vibelib
+       util/dump.sh restore data/backups/vibelib-<stamp>.dump
+
+   The restore prints the row counts. Compare them with the counts before the loss.
+
+To check a dump without restoring it, list what it contains:
+
+    docker compose run --rm --no-deps backup \
+        pg_restore --list /backups/vibelib-<stamp>.dump
+
+After a total loss of the host, the restore needs only the repository and the
+Hetzner credentials. Rebuild the host, clone the repository, create
+src/docker/.env, start the db service, and then follow the steps above.
+Migrations run when the web service starts.
+
+
+Verified
+--------
+
+November 2026, on the development machine against a local MinIO: s3-test,
+three backups with BACKUP_RETAIN=2 (the oldest was deleted), list, fetch, and
+pg_restore --list on the fetched dump. Also a wrong access key, which gave the
+credentials advice. Not verified yet: a run against the Hetzner bucket, and a
+full restore from a fetched dump.

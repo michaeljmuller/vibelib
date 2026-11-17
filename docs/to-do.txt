@@ -35,5 +35,4 @@ to clean up:
  - mark series that are complete
  - missing covers
  - get rid of the legacy db service from the docker-compose
-
-
+ - add link to view full-size cover image (in book details, probably)

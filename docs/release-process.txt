@@ -9,8 +9,8 @@ Updates are performed as follows:
 1) ssh to the host as user mmuller
 
 2) back up the database: cd ~/sites/vibelib && util/dump.sh
-   Do this BEFORE the pull, not after. The dump is the only copy of the curated
-   metadata, and the next step may migrate the schema.
+   Do this BEFORE the pull, not after. The next step may migrate the schema,
+   and the nightly dump in object storage (docs/backup.txt) can be a day old.
 
 3) shut down the application: cd ~/sites/vibelib/src/docker && docker compose down
 

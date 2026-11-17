@@ -95,6 +95,37 @@ services:
       db:
         condition: service_healthy
 
+  # Nightly pg_dump of the library to the Hetzner backup bucket, so a copy of
+  # the curation lives off this host. See docs/backup.txt.
+  backup:
+    build:
+      context: ../python/backup
+      dockerfile: ../../docker/backup/Dockerfile
+    restart: ${RESTART_POLICY:-unless-stopped}
+    environment:
+      PGHOST: db
+      PGDATABASE: vibelib
+      PGUSER: vibelib
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-America/Denver}
+      # Only the word "never" turns the nightly run off; set it on a dev machine,
+      # so it does not upload dev dumps that push the production ones out.
+      RUN_AT: ${RUN_AT:-03:30}
+      BACKUP_RETAIN: ${BACKUP_RETAIN:-30}
+      # The book bucket's Hetzner project and credentials, with a bucket of its
+      # own. Unset, the service takes no backup.
+      OBJECT_STORE_ACCESS_KEY_ID: ${OBJECT_STORE_ACCESS_KEY_ID}
+      OBJECT_STORE_SECRET_ACCESS_KEY: ${OBJECT_STORE_SECRET_ACCESS_KEY}
+      OBJECT_STORE_BUCKET_ENDPOINT: ${OBJECT_STORE_BUCKET_ENDPOINT}
+      OBJECT_STORE_BUCKET_REGION: ${OBJECT_STORE_BUCKET_REGION}
+      OBJECT_STORE_BACKUP_BUCKET_NAME: ${OBJECT_STORE_BACKUP_BUCKET_NAME:-}
+    volumes:
+      # Where `backup fetch` puts a dump, beside the ones util/dump.sh writes.
+      - ../../data/backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+
   # The pre-vibelib library database, restored from old-library-mysql-backup.sql
   # so its data (notably assets.acq_date) can be mined. Read-only reference, not
   # part of the running system — hence the profile:
@@ -118,6 +149,7 @@ services:
       retries: 60
 
 volumes:
-  # The library's curated metadata. The only copy that matters is the one
-  # util/dump.sh writes -- see the note on the db service above.
+  # The library's curated metadata. The copies that matter are the pg_dumps:
+  # nightly from the backup service, and by hand from util/dump.sh -- see the
+  # note on the db service above.
   pgdata:
