@@ -1,0 +1,122 @@
+OPDS catalog for e-readers
+==========================
+
+This document covers the OPDS catalog at /opds, how a device gets access, and
+how to set up KOReader on a Kindle. It is for the library owner, who adds and
+removes devices, and for the release manager, who prepares the server.
+
+
+What it is
+----------
+
+OPDS is a catalog format for e-reader apps. The catalog is a set of Atom
+feeds. A reader app such as KOReader uses the feeds to browse the library and
+download books.
+
+The catalog offers ebooks only. A book that has no epub does not appear, and
+the catalog has no links to audiobooks.
+
+The start page at /opds has these sections:
+
+- Recently added: books by acquisition date, newest first.
+- Titles A-Z: books by title.
+- Authors: a list of authors. Each author opens a list of their books.
+- Series: a list of series. Each series opens its books in reading order.
+
+Search matches titles, series names and author names, the same as the web
+UI. Each list shows 50 entries per page, and the reader loads the next page.
+Each book shows its title, authors, series and position, cover, and the
+description from the epub. If a book has more than one epub, the entry offers
+each one.
+
+The catalog is read only. A device cannot change the library.
+
+
+How devices sign in
+-------------------
+
+An e-reader cannot do a Google sign-in. A device sends a username and a
+password with HTTP Basic auth instead. The app compares them with an htpasswd
+file, which has one line per device.
+
+The file is data/opds/htpasswd in the repository checkout. The compose file
+mounts the data/opds directory into the web container at /opds, read only.
+The app reads the file again when it changes, so a change applies on the next
+request without a restart. If the file does not exist, no device gets in.
+
+A device can reach only these paths:
+
+- /opds and everything under it
+- /download/epub/{id}
+- /covers/epub/{id} and /covers/epub/thumb/{id}
+
+Any other request from a device gets a 403, including audiobook downloads.
+The list is OPDS_SCOPE in src/python/web/web/auth.py.
+
+The file accepts bcrypt hashes only. The app ignores a line in any other
+htpasswd format and writes a warning to the log.
+
+
+Server preparation
+------------------
+
+The release manager creates the directory once, before the first start with
+this change:
+
+    mkdir -p ~/sites/vibelib/data/opds
+
+Podman does not start a container when the source directory of a bind mount
+is missing. Docker creates it.
+
+At startup, the log has one line that names the devices in the file, or says
+that there are none:
+
+    docker compose logs web | grep OPDS
+
+
+Add a device
+------------
+
+To give a device access, the library owner does the following on the server:
+
+1. Choose a name for the device, for example kindle-alex. The name is the
+   username.
+2. Make a random password. A short password of lowercase letters and digits
+   is easier to type on a Kindle:
+
+       openssl rand -base64 30 | tr -dc 'a-z0-9' | cut -c1-20
+
+3. Make the htpasswd line and add it to the file:
+
+       docker run --rm httpd:2.4 htpasswd -nbB kindle-alex <password> \
+         | grep . >> ~/sites/vibelib/data/opds/htpasswd
+
+4. Keep the password until the device is set up. The file has only the hash.
+
+The htpasswd command runs in a container, so the host needs no Apache tools.
+
+
+Remove a device
+---------------
+
+To remove a device, delete its line from data/opds/htpasswd. The device loses
+access on its next request.
+
+
+Set up KOReader
+---------------
+
+To add the catalog in KOReader, the library owner does the following on the
+Kindle:
+
+1. Open the file browser, then the search menu, then OPDS catalog.
+2. Tap the plus sign to add a catalog.
+3. Enter a name, for example vibelib.
+4. Enter the URL: the public origin of the library followed by /opds, for
+   example https://library.example.org/opds.
+5. Enter the username and password of the device.
+6. Save, then open the catalog.
+
+Not verified yet: these steps and menu names come from the KOReader
+documentation and were not tested on a Kindle. The catalog itself was tested
+with curl against the development stack in November 2026.

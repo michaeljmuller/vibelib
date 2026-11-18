@@ -65,6 +65,9 @@ services:
       # Lets a script set acquisition dates without a Google sign-in, and do
       # nothing else; see auth.py. Unset, token requests are refused.
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-}
+      # The devices (KOReader on a Kindle) allowed into the OPDS catalog at
+      # /opds, one bcrypt line each; see docs/opds.txt. No file, no devices.
+      OPDS_HTPASSWD: /opds/htpasswd
       # Where the app is reachable from a browser, which is what the OAuth redirect
       # is built from. Unset means local dev; production must set it in .env to the
       # public origin, and that value must match a redirect URI registered on the
@@ -94,6 +97,10 @@ services:
       # `git pull` on the server delivers new migrations -- no rebuild needed for
       # a schema-only change.
       - ../sql:/sql:ro
+      # The directory, not the file: an editor that saves by writing a new file
+      # and renaming it over the old one would leave a single-file mount
+      # pointing at the old copy, and a removed device still let in.
+      - ../../data/opds:/opds:ro
     depends_on:
       db:
         condition: service_healthy

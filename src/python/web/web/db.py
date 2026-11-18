@@ -193,25 +193,71 @@ def get_book(book_id: int) -> dict[str, Any] | None:
     return book
 
 
-def list_authors() -> list[dict[str, Any]]:
+# epub_only is for the OPDS catalog, which offers ebooks and nothing else: an
+# author or series whose every book is an audiobook would lead to an empty list.
+def list_authors(epub_only: bool = False) -> list[dict[str, Any]]:
+    where = (
+        "WHERE EXISTS (SELECT 1 FROM book_epubs be WHERE be.book_id = ba.book_id)"
+        if epub_only
+        else ""
+    )
     with pool.connection() as conn:
         return conn.execute(
-            """SELECT p.id, p.name, count(*) AS book_count
-               FROM book_authors ba JOIN people p ON p.id = ba.author_id
-               GROUP BY p.id, p.name, p.sort_name
-               ORDER BY p.sort_name"""
+            f"""SELECT p.id, p.name, count(*) AS book_count
+                FROM book_authors ba JOIN people p ON p.id = ba.author_id
+                {where}
+                GROUP BY p.id, p.name, p.sort_name
+                ORDER BY p.sort_name"""
         ).fetchall()
 
 
-def list_series() -> list[dict[str, Any]]:
+def list_series(epub_only: bool = False) -> list[dict[str, Any]]:
+    # The EXISTS is false for a series with no books at all (b.id is NULL), so
+    # with epub_only those drop out too.
+    where = (
+        "WHERE EXISTS (SELECT 1 FROM book_epubs be WHERE be.book_id = b.id)"
+        if epub_only
+        else ""
+    )
     with pool.connection() as conn:
         return conn.execute(
-            """SELECT s.id, s.name, s.highest_position, s.is_complete,
-                      count(b.id) AS book_count
-               FROM series s LEFT JOIN books b ON b.series_id = s.id
-               GROUP BY s.id, s.name, s.sort_name, s.highest_position, s.is_complete
-               ORDER BY s.sort_name"""
+            f"""SELECT s.id, s.name, s.highest_position, s.is_complete,
+                       count(b.id) AS book_count
+                FROM series s LEFT JOIN books b ON b.series_id = s.id
+                {where}
+                GROUP BY s.id, s.name, s.sort_name, s.highest_position, s.is_complete
+                ORDER BY s.sort_name"""
         ).fetchall()
+
+
+def get_person_name(person_id: int) -> str | None:
+    with pool.connection() as conn:
+        row = conn.execute("SELECT name FROM people WHERE id = %s", (person_id,)).fetchone()
+    return row["name"] if row else None
+
+
+def get_series_name(series_id: int) -> str | None:
+    with pool.connection() as conn:
+        row = conn.execute("SELECT name FROM series WHERE id = %s", (series_id,)).fetchone()
+    return row["name"] if row else None
+
+
+def list_book_epubs(book_ids: list[int]) -> dict[int, list[dict[str, Any]]]:
+    """Every epub of each book, in id order. list_books carries only the first
+    one; an OPDS entry offers them all."""
+    found: dict[int, list[dict[str, Any]]] = {book_id: [] for book_id in book_ids}
+    if not book_ids:
+        return found
+    with pool.connection() as conn:
+        rows = conn.execute(
+            """SELECT be.book_id, e.id, e.description
+               FROM book_epubs be JOIN epubs e ON e.id = be.epub_id
+               WHERE be.book_id = ANY(%s) ORDER BY be.book_id, e.id""",
+            (book_ids,),
+        ).fetchall()
+    for row in rows:
+        found[row["book_id"]].append({"id": row["id"], "description": row["description"]})
+    return found
 
 
 def list_languages() -> list[dict[str, Any]]:

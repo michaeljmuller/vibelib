@@ -12,6 +12,10 @@ trip to draw the grid.
 
 Everything is behind Google sign-in and an allowlist; see `web/auth.py`.
 
+The OPDS catalog at `/opds` (ebooks only, for e-readers such as KOReader) also
+accepts HTTP Basic auth from devices listed in an htpasswd file; see
+`docs/opds.txt`.
+
 ```sh
 util/web.sh          # build and start on http://localhost:8000
 util/web.sh logs

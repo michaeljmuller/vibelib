@@ -17,6 +17,7 @@ dependencies = [
     "mutagen>=1.47",       # m4b tags and cover art (chapters come from ffprobe)
     "pillow>=10.4",        # downscales an extracted cover into a grid thumbnail
     "anthropic>=0.60",     # resolving a new asset to a book -- see web/ingest
+    "bcrypt>=4.1",         # checks the OPDS device passwords in the htpasswd file
 ]
 
 [project.optional-dependencies]

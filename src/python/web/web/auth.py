@@ -8,12 +8,17 @@ authorization starts, not where it ends -- the callback takes the verified email
 Google returns and looks it up on the allowlist, and a miss is shown the door.
 """
 
+import base64
+import binascii
+import hashlib
 import hmac
 import logging
 import os
 import re
+from pathlib import Path
 from urllib.parse import quote
 
+import bcrypt
 from authlib.integrations.starlette_client import OAuth, OAuthError
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -135,6 +140,122 @@ def _bearer(request: Request) -> str | None:
     return value.strip() if scheme.lower() == "bearer" else None
 
 
+# --- OPDS devices -------------------------------------------------------------
+#
+# An e-reader (KOReader on a Kindle) cannot do a Google sign-in, so the OPDS
+# catalog also takes HTTP Basic auth, checked against an htpasswd file. One line
+# per device, with a bcrypt hash: `htpasswd -nbB <name> <password>` writes one.
+# Deleting a line revokes that device on its next request. The file is re-read
+# whenever it changes, so neither needs a restart. No file means no device gets in.
+#
+# A device reaches only OPDS_SCOPE: the catalog, and epub downloads and covers.
+# Audiobooks are left out of OPDS on purpose, and so is everything else; any
+# route added later is a 403 for a device too.
+OPDS_HTPASSWD = Path(os.environ.get("OPDS_HTPASSWD", "/opds/htpasswd"))
+
+OPDS_SCOPE = (
+    ("GET", re.compile(r"/opds(/.*)?")),
+    ("GET", re.compile(r"/download/epub/\d+")),
+    ("GET", re.compile(r"/covers/epub/(thumb/)?\d+")),
+)
+
+# The 401 that makes a reader app ask for a username and password.
+CHALLENGE = {"WWW-Authenticate": 'Basic realm="vibelib", charset="UTF-8"'}
+
+
+class Htpasswd:
+    """The device list, re-read when the file changes.
+
+    A reader fetches a feed and then a cover for every book on it, each with the
+    same credentials. bcrypt is slow on purpose, so a password that checked out
+    once is remembered (as a SHA-256 of it, never the password itself) until the
+    file next changes.
+    """
+
+    def __init__(self, path: Path):
+        self.path = path
+        self._stamp: tuple | None = None
+        self._hashes: dict[str, bytes] = {}
+        self._verified: dict[str, bytes] = {}
+
+    def _reload(self) -> None:
+        try:
+            st = self.path.stat()
+            stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
+        except FileNotFoundError:
+            stamp = None
+        if stamp == self._stamp:
+            return
+
+        hashes: dict[str, bytes] = {}
+        if stamp is not None:
+            for number, line in enumerate(self.path.read_text().splitlines(), 1):
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                name, sep, hashed = line.partition(":")
+                # Only bcrypt. htpasswd's other formats include unsalted SHA-1
+                # and plain text, and an old line in one of them should fail
+                # loudly rather than work.
+                if not sep or not hashed.startswith(("$2y$", "$2b$", "$2a$")):
+                    log.warning("%s line %d is not name:bcrypt-hash (use htpasswd -B); ignored",
+                                self.path, number)
+                    continue
+                # $2y$ is Apache's name for what the bcrypt library calls $2b$.
+                hashes[name] = ("$2b$" + hashed[4:]).encode()
+        self._hashes = hashes
+        self._verified = {}
+        self._stamp = stamp
+
+    def names(self) -> list[str]:
+        self._reload()
+        return sorted(self._hashes)
+
+    def check(self, name: str, password: str) -> bool:
+        self._reload()
+        hashed = self._hashes.get(name)
+        if hashed is None:
+            return False
+        digest = hashlib.sha256(password.encode()).digest()
+        remembered = self._verified.get(name)
+        if remembered is not None and hmac.compare_digest(remembered, digest):
+            return True
+        if bcrypt.checkpw(password.encode(), hashed):
+            self._verified[name] = digest
+            return True
+        return False
+
+
+devices = Htpasswd(OPDS_HTPASSWD)
+
+
+def check_opds() -> None:
+    """Called at startup: says whether any device can reach the catalog."""
+    names = devices.names()
+    if names:
+        log.info("OPDS: %d device(s) in %s: %s", len(names), OPDS_HTPASSWD, ", ".join(names))
+    else:
+        log.info("OPDS: no devices in %s; the catalog refuses everyone but signed-in users.",
+                 OPDS_HTPASSWD)
+
+
+def opds_allows(method: str, path: str) -> bool:
+    return any(method == m and pattern.fullmatch(path) for m, pattern in OPDS_SCOPE)
+
+
+def _basic(request: Request) -> tuple[str, str] | None:
+    header = request.headers.get("authorization", "")
+    scheme, _, value = header.partition(" ")
+    if scheme.lower() != "basic":
+        return None
+    try:
+        decoded = base64.b64decode(value.strip(), validate=True).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError):
+        return ("", "")  # malformed: judged, and refused, like a wrong password
+    name, _, password = decoded.partition(":")
+    return name, password
+
+
 oauth = OAuth()
 oauth.register(
     name="google",
@@ -245,6 +366,10 @@ class RequireLogin(BaseHTTPMiddleware):
         if token is not None:
             return await self._token_request(request, call_next, token, path)
 
+        basic = _basic(request)
+        if basic is not None:
+            return await self._device_request(request, call_next, *basic, path)
+
         email = request.session.get("email")
 
         if email is None and DEV_USER:
@@ -282,6 +407,18 @@ class RequireLogin(BaseHTTPMiddleware):
         request.state.user = TOKEN_USER
         return await call_next(request)
 
+    async def _device_request(self, request: Request, call_next, name: str, password: str, path: str):
+        # Like a token request: judged by the credentials alone, and it never
+        # touches the session, so a device password cannot become a browser login.
+        if not devices.check(name, password):
+            log.warning("OPDS login refused for %r", name)
+            return JSONResponse({"detail": "invalid credentials"}, status_code=401, headers=CHALLENGE)
+        if not opds_allows(request.method, path):
+            log.warning("OPDS device %r refused for %s %s: outside its scope", name, request.method, path)
+            return JSONResponse({"detail": "outside the device's scope"}, status_code=403)
+        request.state.user = {"id": None, "email": f"opds:{name}", "name": name, "is_admin": False}
+        return await call_next(request)
+
     def _turn_away(self, request: Request, path: str):
         # A script wants a status code it can branch on; a person wants the login
         # page, and to arrive at the page they originally asked for once they are
@@ -289,6 +426,10 @@ class RequireLogin(BaseHTTPMiddleware):
         # 200 stapled to it, which is indistinguishable from success.
         if path.startswith("/api/"):
             return JSONResponse({"detail": "not authenticated"}, status_code=401)
+        # A reader app cannot follow a redirect to a Google login; a challenge is
+        # what makes it ask for the device's username and password.
+        if path == "/opds" or path.startswith("/opds/"):
+            return JSONResponse({"detail": "not authenticated"}, status_code=401, headers=CHALLENGE)
 
         target = path + ("?" + request.url.query if request.url.query else "")
         return RedirectResponse(f"/login?next={quote(target)}", status_code=302)

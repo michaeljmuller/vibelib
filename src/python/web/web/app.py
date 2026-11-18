@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, covers, curate, db, migrate, s3
+from . import auth, covers, curate, db, migrate, opds, s3
 from .ingest import api as ingest_api
 from .ingest.worker import worker as ingest_worker
 
@@ -30,6 +30,7 @@ async def lifespan(app: FastAPI):
     # the library open to the world.
     auth.check_dev_user()
     auth.check_api_token()
+    auth.check_opds()
     db.pool.open(wait=True, timeout=30)
     # And do not serve until the schema matches the code that is about to run
     # against it. A failure here is a failure to start, on purpose.
@@ -62,6 +63,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(ingest_api.router)
 app.include_router(curate.router)
+app.include_router(opds.router)
 
 
 def _with_cover(book: dict[str, Any]) -> dict[str, Any]:
