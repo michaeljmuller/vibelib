@@ -59,10 +59,14 @@ acquisition date of one epub or m4b, and set the publication date of one book.
 The list is TOKEN_SCOPE in
 src/python/web/web/auth.py. Every other request with the token gets a 403.
 
-To create or replace the token, generate a value, put it in .env, and restart
-the web service:
+To create or replace the token, generate a value, put it in .env, and recreate
+the web container:
 
     openssl rand -hex 32
+    cd ~/sites/vibelib/src/docker && docker compose up -d web
 
-The app refuses to start with a token shorter than 32 characters. To revoke the
-token, remove the line or change the value, and restart.
+Use `up -d`, not `restart`: restart keeps the environment the container was
+created with, so it does not see a changed .env. The log then says
+"ADMIN_API_TOKEN is set". The app refuses to start with a token shorter than 32
+characters. To revoke the token, remove the line or change the value, and run
+`up -d web` again.
